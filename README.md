@@ -9,8 +9,9 @@ Installation
 1. Install the node modules from the base directory (ignore errors and warnings on Windows):
 
         npm install
-        
-2. Run the following command from the base directory:
+ 
+2. Create the settings.js file in the root directory as indicated below.
+3. Run the following command from the base directory:
 
         node index.js
 
