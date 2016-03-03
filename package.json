@@ -1,0 +1,29 @@
+{
+    "name": "SixBotGG",
+    "version": "1.0.0",
+    "description": "A Twitch IRC bot for Six Gaming.",
+    "homepage": "https://github.com/roncli/SixBotGG",
+    "bugs": {
+        "url": "https://github.com/roncli/SixBotGG/issues",
+        "email": "roncli@roncli.com"
+    },
+    "license": "None",
+    "author": {
+        "name": "Ronald M. Clifford",
+        "email": "roncli@roncli.com",
+        "url": "http://www.roncli.com"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/roncli/SixBotGG.git"
+    },
+    "dependencies": {
+        "irc": "0.4.1",
+        "promised-io": "0.3.5",
+        "twitch-api": "0.4.3"
+    },
+    "engines": {
+        "node": ">=5.0.0"
+    },
+    "private": true
+}
