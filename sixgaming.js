@@ -48,7 +48,7 @@ SixGaming.start = function(_client, _twitch) {
             index = 0,
             tryHosting = function() {
                 twitch.getChannelStream(streamers[index], function(err, results) {
-                    if (err) {
+                    if (err || !results) {
                         index++;
                     } else {
                         if (results.stream) {
@@ -151,12 +151,6 @@ SixGaming.start = function(_client, _twitch) {
                 SixGaming["+mode"](by, mode, argument, message);
             }
         });
-
-        client.addListener("-mode", function(channel, by, mode, argument, message) {
-            if (channel === "#sixgaminggg") {
-                SixGaming["-mode"](by, mode, argument, message);
-            }
-        });
     });
 
     checkSixIsLive();
@@ -190,16 +184,10 @@ SixGaming.part = function(nick, reason, message) {
 };
 
 SixGaming["+mode"] = function(by, mode, argument, message) {
-    if (mode === "o") {
+    if (mode === "o" && nicks[message.args[2]] !== "o") {
         nicks[message.args[2]] = "o";
-        SixGaming.queue("Hi, " + message.args[2] + "! HeyGuys");
-    }
-};
-
-SixGaming["-mode"] = function(by, mode, argument, message) {
-    if (mode === "o") {
-        if (nicks[message.args[2]] === "o") {
-            nicks[message.args[2]] = "";
+        if (message.args[2] !== "sixbotgg" && message.args[2] !== "sixgaminggg") {
+            SixGaming.queue("Hi, " + message.args[2] + "! HeyGuys");
         }
     }
 };

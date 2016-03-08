@@ -43,6 +43,15 @@ The following should be the contents of settings.js:
 Version History
 ===============
 
+1.0.1 - 3/7/2016
+----------------
+
+This is a bug fix release.
+
+* Do not greet SixBotGG or SixGamingGG in chat.
+* Do not assume people have been unmodded, and do not greet if they were already modding.
+* Check if `response` is an object before trying to check the `stream` object. 
+
 1.0.0 - 3/2/2016
 ----------------
 
