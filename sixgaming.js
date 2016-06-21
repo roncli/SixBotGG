@@ -6,10 +6,10 @@ var pjson = require("./package.json"),
     userParse = /^([^#]+)#([1-9][0-9]+)$/,
     addGameParse = /^([a-zA-Z0-9]{2,50}) +(.{2,255})$/,
     nicks = {},
-    sixIsLive = false,
     streamers = [],
     hosts = [],
-    live = [],
+    hostingTimestamps = [],
+    liveChannels = {},
     channelDeletionTimeouts = {},
     userChannels = {},
     channelCounts = {},
@@ -21,10 +21,9 @@ var pjson = require("./package.json"),
         "itunes",
         "discord"
     ],
+    lastHost = 0,
     commandRotationWait = 5,
     commandRotationTimeout = 0,
-    nextCheckHost = 0,
-    secondaryChangeHost = 0,
     currentHost = "",
     manualHosting = false,
     irc, discord, twitch, sixDiscord, sixBotGGChannel, liveStreamAnnouncementsChannel, streamersRole;
@@ -40,179 +39,214 @@ SixGaming.start = function(_irc, _discord, _twitch) {
         db.query("select streamer from streamer where validated = 1; select streamer from host", {}, function(err, data) {
             var readied = false,
 
-                checkHosting = function() {
-                    var hosted = false,
-                        index = 0,
-                        hostedIndex = -1,
+                checkStreams = function() {
+                    var channels = ["sixgaminggg"].concat(streamers, hosts).join(","),
+                        streams = [],
 
-                        tryHosting = function() {
-                            if (streamers.length === 0) {
-                                index = 0;
-                                hostedIndex = -1;
-                                trySecondaryHosting();
-                                return;
-                            }
+                        getStreams = function(offset) {
+                            twitch.getStreams({channel: channels, limit: 100, stream_type: "live", offset: offset}, function(err, results) {
+                                var wentOffline = [], wentLive = [],
+                                    live, key;
 
-                            twitch.getChannelStream(streamers[index], function(err, results) {
-                                var streamerIndex;
+                                if (err) {
+                                    // Skip the current round of checking streams, and just check again in a minute.
+                                    console.log("Error checking streams.");
+                                    console.log(err);
+                                    setTimeout(checkStreams, 60000);
+                                    return;
+                                }
 
-                                if (!hosted && nextCheckHost <= 0) {
-                                    if (!err && results && results.stream && !results.stream.is_playlist) {
-                                        hosted = true;
-                                    }
+                                // Sanitize data.
+                                if (!results.streams) {
+                                    results.streams = [];
+                                }
+                                if (!results._total) {
+                                    results._total = 0;
+                                }
 
-                                    nextCheckHost = 0;
+                                // Concate streams and continue getting more streams if necessary.
+                                streams = streams.concat(results.streams);
+                                if (results._total > offset + 100) {
+                                    getStreams(offset + 100);
+                                    return;
+                                }
 
-                                    if (hosted) {
-                                        if (currentHost !== streamers[index]) {
-                                            currentHost = streamers[index];
-                                            hostedIndex = index;
-                                            SixGaming.ircQueue("Now hosting Six Gamer " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
-                                            SixGaming.ircQueue("/host " + currentHost);
+                                // Get the list of live channels.
+                                live = streams.map(function(stream) {
+                                    return stream.channel.name.toLowerCase();
+                                });
+
+                                // Detect which streams have gone offline.
+                                for (key in liveChannels) {
+                                    if (liveChannels.hasOwnProperty(key)) {
+                                        if (live.indexOf(key) === -1) {
+                                            wentOffline.push(key);
                                         }
-                                        nextCheckHost = 10;
-                                        secondaryChangeHost = 0;
                                     }
                                 }
 
-                                streamerIndex = live.indexOf(streamers[index]);
-                                if (!err && results && results.stream && !results.stream.is_playlist) {
-                                    if (streamerIndex === -1) {
-                                        live.push(streamers[index]);
-                                        if (results.stream.game) {
-                                            SixGaming.discordQueue("@everyone - Six Gamer " + streamers[index] + " just went live on Twitch with \"" + results.stream.game + "\": \"" + results.stream.channel.status + "\"  Watch at http://twitch.tv/" + streamers[index], liveStreamAnnouncementsChannel);
+                                // Remove live channel data from offline streams.
+                                wentOffline.forEach(function(name) {
+                                    if (name === "SixGamingGG") {
+                                        discord.setStatus("online", null);
+                                    }
+                                    delete liveChannels[name];
+                                });
+
+                                // Detect which streams have gone online.
+                                live.forEach(function(name) {
+                                    if (!liveChannels[name]) {
+                                        wentLive.push(name);
+                                    }
+                                });
+
+                                // Save channel data.
+                                streams.forEach(function(stream) {
+                                    liveChannels[stream.channel.name] = stream;
+                                });
+
+                                // Discord notifications for new live channels.
+                                wentLive.forEach(function(stream) {
+                                    if (stream === "SixGamingGG") {
+                                        if (liveChannels[stream].game) {
+                                            SixGaming.discordQueue("@everyone - Six Gaming just went live on Twitch with \"" + liveChannels[stream].game + "\": \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
                                         } else {
-                                            SixGaming.discordQueue("@everyone - Six Gamer " + streamers[index] + " just went live on Twitch: \"" + results.stream.channel.status + "\"  Watch at http://twitch.tv/" + streamers[index], liveStreamAnnouncementsChannel);
+                                            SixGaming.discordQueue("@everyone - Six Gaming just went live on Twitch: \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
+                                        }
+                                        currentHost = "";
+                                        manualHosting = false;
+                                        SixGaming.ircQueue("/unhost");
+                                        SixGaming.ircQueue("What's going on everyone?  Six Gaming is live!");
+                                        discord.setStreaming(liveChannels[stream].channel.status, "http://twitch.tv/SixGamingGG", 1);
+                                    } else if (streamers.indexOf(stream.toLowerCase()) !== -1) {
+                                        if (liveChannels[stream].game) {
+                                            SixGaming.discordQueue("@everyone - Six Gamer " + stream + " just went live on Twitch with \"" + liveChannels[stream].game + "\": \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
+                                        } else {
+                                            SixGaming.discordQueue("@everyone - Six Gamer " + stream + " just went live on Twitch: \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
+                                        }
+                                    } else if (hosts.indexOf(stream.toLowerCase()) !== -1) {
+                                        if (liveChannels[stream].game) {
+                                            SixGaming.discordQueue(stream + " just went live on Twitch with \"" + liveChannels[stream].game + "\": \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
+                                        } else {
+                                            SixGaming.discordQueue(stream + " just went live on Twitch: \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
                                         }
                                     }
-                                } else {
-                                    if (streamerIndex !== -1) {
-                                        live.splice(streamerIndex, 1);
-                                    }
-                                }
+                                });
 
-                                index++;
-                                if (index < streamers.length) {
-                                    tryHosting();
+                                // If manual hosting is active, check it.  Afterwards, update hosting.
+                                if (manualHosting) {
+                                    twitch.getChannelStream(currentHost, function(err, results) {
+                                        if (err) {
+                                            // Skip the current round of checking the manual host, and just check again next time.
+                                            console.log("Error checking current host.");
+                                            console.log(err);
+                                            updateHosting(live);
+                                            return;
+                                        }
+
+                                        manualHosting = results && results.stream;
+                                        if (manualHosting) {
+                                            liveChannels[currentHost] = results.stream;
+                                        } else {
+                                            delete liveChannels[currentHost];
+                                            currentHost = "";
+                                        }
+                                        updateHosting(live);
+                                    });
                                 } else {
-                                    index = 0;
-                                    if (hostedIndex !== -1) {
-                                        streamers.splice(hostedIndex, 1);
-                                        streamers.push(currentHost);
-                                    }
-                                    hostedIndex = -1;
-                                    trySecondaryHosting();
+                                    updateHosting(live);
                                 }
                             });
                         },
 
-                        trySecondaryHosting = function() {
-                            var hostIndex;
+                        updateHosting = function(live) {
+                            var liveStreamers;
 
-                            if (hosts.length === 0) {
-                                if (!hosted) {
-                                    currentHost = "";
-                                }
-                                setTimeout(checkSixIsLive, 60000);
+                            if (liveChannels["SixGamingGG"]) {
+                                // Six Gaming is live, no need to update hosting.
+                                setTimeout(checkStreams, 60000);
                                 return;
                             }
 
-                            twitch.getChannelStream(hosts[index], function(err, results) {
-                                if (!hosted && secondaryChangeHost <= 0) {
-                                    if (!err && results && results.stream && !results.stream.is_playlist) {
-                                        hosted = true;
+                            if (manualHosting && currentHost && liveChannels[currentHost]) {
+                                // Manual hosting is in effect, no need to update hosting.
+                                setTimeout(checkStreams, 60000);
+                                return;
+                            }
+
+                            if (hostingTimestamps.length > 2 && hostingTimestamps[0] + 1805000 > new Date().getTime()) {
+                                // Hosted 3 times in under 30 minutes, cannot update hosting.
+                                setTimeout(checkStreams, 60000);
+                                return;
+                            }
+
+                            if (currentHost && !liveChannels[currentHost]) {
+                                lastHost = 0;
+                            }
+
+                            if (lastHost + 600000 > new Date().getTime()) {
+                                // Last host happened within 10 minutes, don't switch yet.
+                                setTimeout(checkStreams, 60000);
+                                return;
+                            }
+
+                            // Get lowercase list of live streamers.
+                            live = live.map(function(streamer) {
+                                return streamer.toLowerCase();
+                            });
+
+                            // Try to host a live streamer.
+                            liveStreamers = streamers.filter(function(streamer) {
+                                return live.indexOf(streamer.toLowerCase()) !== -1;
+                            });
+                            if (liveStreamers.length > 0) {
+                                if (liveStreamers[0] !== currentHost) {
+                                    currentHost = liveStreamers[0].toLowerCase();
+                                    SixGaming.ircQueue("Now hosting Six Gamer " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
+                                    SixGaming.ircQueue("/host " + currentHost);
+                                    lastHost = new Date().getTime();
+                                    hostingTimestamps.push(new Date().getTime());
+                                    while (hostingTimestamps.length > 3) {
+                                        hostingTimestamps.splice(0, 1);
                                     }
+                                    streamers.splice(streamers.indexOf(currentHost), 1);
+                                    streamers.push(currentHost);
+                                }
+                                setTimeout(checkStreams, 60000);
+                                return;
+                            }
 
-                                    nextCheckHost = 0;
+                            if (lastHost + 3600000 > new Date().getTime()) {
+                                // Last host happened within an hour, don't switch yet.
+                                setTimeout(checkStreams, 60000);
+                                return;
+                            }
 
-                                    if (hosted) {
-                                        if (currentHost !== hosts[index]) {
-                                            currentHost = hosts[index];
-                                            hostedIndex = index;
-                                            SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
-                                            SixGaming.ircQueue("/host " + currentHost);
-                                        }
-                                        nextCheckHost = 10;
-                                        secondaryChangeHost = 60;
+                            // Try to host a live host.
+                            liveStreamers = hosts.filter(function(host) {
+                                return live.indexOf(host.toLowerCase()) !== -1;
+                            });
+                            if (liveStreamers.length > 0) {
+                                if (liveStreamers[0] !== currentHost) {
+                                    currentHost = liveStreamers[0].toLowerCase();
+                                    SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
+                                    SixGaming.ircQueue("/host " + currentHost);
+                                    lastHost = new Date().getTime();
+                                    hostingTimestamps.push(new Date().getTime());
+                                    while (hostingTimestamps.length > 3) {
+                                        hostingTimestamps.splice(0, 1);
                                     }
-                                }
-
-                                hostIndex = live.indexOf(hosts[index]);
-                                if (!err && results && results.stream && !results.stream.is_playlist) {
-                                    if (hostIndex === -1) {
-                                        live.push(hosts[index]);
-                                        if (results.stream.game) {
-                                            SixGaming.discordQueue(hosts[index] + " just went live on Twitch with \"" + results.stream.game + "\": \"" + results.stream.channel.status + "\"  Watch at http://twitch.tv/" + hosts[index], liveStreamAnnouncementsChannel);
-                                        } else {
-                                            SixGaming.discordQueue(hosts[index] + " just went live on Twitch: \"" + results.stream.channel.status + "\"  Watch at http://twitch.tv/" + hosts[index], liveStreamAnnouncementsChannel);
-                                        }
-                                    }
-                                } else {
-                                    if (hostIndex !== -1) {
-                                        live.splice(hostIndex, 1);
-                                    }
-                                }
-
-                                index++;
-                                if (index < hosts.length) {
-                                    trySecondaryHosting();
-                                    return;
-                                }
-
-                                if (!hosted) {
-                                    currentHost = "";
-                                }
-
-                                if (hostedIndex !== -1) {
-                                    hosts.splice(hostedIndex, 1);
+                                    hosts.splice(hosts.indexOf(currentHost), 1);
                                     hosts.push(currentHost);
                                 }
+                                setTimeout(checkStreams, 60000);
+                                return;
+                            }
 
-                                setTimeout(checkSixIsLive, 60000);
-                            });
+                            setTimeout(checkStreams, 60000);
                         };
 
-                    tryHosting();
-                },
-
-                checkSixIsLive = function() {
-                    twitch.getChannelStream("sixgaminggg", function(err, results) {
-                        var sixWasLive = sixIsLive;
-                        sixIsLive = !err && results && results.stream;
-                        if (sixIsLive && currentHost) {
-                            currentHost = "";
-                            manualHosting = false;
-                            nextCheckHost = 0;
-                            secondaryChangeHost = 0;
-                        }
-                        if (!sixWasLive && sixIsLive) {
-                            SixGaming.ircQueue("/unhost");
-                            SixGaming.ircQueue("What's going on everyone? Six Gaming is live!");
-                            discord.setStreaming(results.stream.channel.status, "http://twitch.tv/SixGamingGG", 1);
-                        }
-                        if (sixWasLive && !sixIsLive) {
-                            discord.setStatus("online", null);
-                        }
-
-                        if (manualHosting && currentHost !== "") {
-                            twitch.getChannelStream(currentHost, function(err, results) {
-                                manualHosting = !err && results && results.stream;
-                                if (!manualHosting) {
-                                    checkHosting();
-                                } else {
-                                    setTimeout(checkSixIsLive, 60000);
-                                }
-                            });
-                        } else {
-                            nextCheckHost--;
-                            secondaryChangeHost--;
-                            if (!sixIsLive && !manualHosting) {
-                                checkHosting();
-                            } else {
-                                setTimeout(checkSixIsLive, 60000);
-                            }
-                        }
-                    });
+                    getStreams(0);
                 },
 
                 ircConnect = function() {
@@ -291,9 +325,16 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                 if (!readied) {
                     readied = true;
 
+                    // Connect to IRC.
                     ircConnect();
-                    checkSixIsLive();
+
+                    // Setup IRC command rotation.
                     SixGaming.commandRotation();
+
+                    // Check streams.
+                    checkStreams();
+
+                    // Start deleting old Discord channels.
                     sixDiscord.channels.filter(function(channel) {
                         return channel.type === "voice";
                     }).forEach(function(channel) {
@@ -331,6 +372,7 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                 }
             });
 
+            // Connect to Discord.
             discordConnect();
         });
     };
@@ -532,22 +574,37 @@ SixGaming.ircMessages = {
 
     host: function(from, message) {
         if (message && SixGaming.isAdmin(from)) {
-            if (sixIsLive) {
+            if (liveChannels["SixGamingGG"]) {
                 SixGaming.ircQueue("Sorry, " + from + ", but Six Gaming is live right now!");
-            } else {
-                twitch.getChannelStream(message, function(err, results) {
-                    manualHosting = !err && results && results.stream;
-                    if (manualHosting) {
-                        currentHost = message;
-                        SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
-                        SixGaming.ircQueue("/host " + currentHost);
-                        nextCheckHost = 0;
-                        secondaryChangeHost = 0;
-                    } else {
-                        SixGaming.ircQueue("Sorry, " + from + ", but " + message + " is not live right now.");
-                    }
-                });
+                return;
             }
+
+            if (hostingTimestamps.length > 2 && hostingTimestamps[0] + 1805000 > new Date().getTime()) {
+                SixGaming.ircQueue("Sorry, " + from + ", but I can only host 3 times within 30 minutes.");
+                return;
+            }
+
+            twitch.getChannelStream(message, function(err, results) {
+                manualHosting = !err && results && results.stream;
+                if (manualHosting) {
+                    currentHost = message();
+                    SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
+                    SixGaming.ircQueue("/host " + currentHost);
+                    if (results.stream.game) {
+                        SixGaming.discordQueue(message + " has been hosted by Six Gaming on Twitch, with \"" + results.stream.game + "\": \"" + results.stream.channel.status + "\"  Watch at http://twitch.tv/" + message, liveStreamAnnouncementsChannel);
+                    } else {
+                        SixGaming.discordQueue(message + " has been hosted by Six Gaming on Twitch: \"" + results.stream.channel.status + "\"  Watch at http://twitch.tv/" + message, liveStreamAnnouncementsChannel);
+                    }
+
+                    lastHost = 0;
+                    hostingTimestamps.push(new Date().getTime());
+                    while (hostingTimestamps.length > 3) {
+                        hostingTimestamps.splice(0, 1);
+                    }
+                } else {
+                    SixGaming.ircQueue("Sorry, " + from + ", but " + message + " is not live right now.");
+                }
+            });
         }
     },
 
@@ -556,8 +613,6 @@ SixGaming.ircMessages = {
             SixGaming.ircQueue("/unhost");
             manualHosting = false;
             currentHost = "";
-            nextCheckHost = 0;
-            secondaryChangeHost = 0;
         }
     },
 
@@ -623,7 +678,7 @@ SixGaming.ircMessages = {
 
                                 SixGaming.ircQueue("You're all set, " + from + ". You are now a Six Gaming streamer!");
                                 SixGaming.discordQueue(user + " is now setup as a Six Gaming streamer at http://twitch.tv/" + from + " and their Discord channel has been created at " + channel + ".");
-                                streamers.push(from);
+                                streamers.push(from.toLowerCase());
                                 hostIndex = hosts.indexOf(from);
                                 if (hostIndex !== -1) {
                                     hosts.splice(hostIndex, 1);
@@ -656,23 +711,38 @@ SixGaming.discordMessages = {
 
     host: function(from, user, message) {
         if (message && SixGaming.isPodcaster(user)) {
-            if (sixIsLive) {
+            if (liveChannels["SixGamingGG"]) {
                 SixGaming.discordQueue("Sorry, " + user + ", but Six Gaming is live right now!");
-            } else {
-                twitch.getChannelStream(message, function(err, results) {
-                    manualHosting = !err && results && results.stream;
-                    if (manualHosting) {
-                        currentHost = message;
-                        SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
-                        SixGaming.ircQueue("/host " + currentHost);
-                        SixGaming.discordQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
-                        nextCheckHost = 0;
-                        secondaryChangeHost = 0;
-                    } else {
-                        SixGaming.discordQueue("Sorry, " + user + ", but " + message + " is not live right now.");
-                    }
-                });
+                return;
             }
+
+            if (hostingTimestamps.length > 2 && hostingTimestamps[0] + 1805000 > new Date().getTime()) {
+                SixGaming.discordQueue("Sorry, " + user + ", but I can only host 3 times within 30 minutes.");
+                return;
+            }
+
+            twitch.getChannelStream(message, function(err, results) {
+                manualHosting = !err && results && results.stream;
+                if (manualHosting) {
+                    currentHost = message();
+                    SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
+                    SixGaming.ircQueue("/host " + currentHost);
+                    if (results.stream.game) {
+                        SixGaming.discordQueue(message + " has been hosted by Six Gaming on Twitch, with \"" + results.stream.game + "\": \"" + results.stream.channel.status + "\"  Watch at http://twitch.tv/" + message, liveStreamAnnouncementsChannel);
+                    } else {
+                        SixGaming.discordQueue(message + " has been hosted by Six Gaming on Twitch: \"" + results.stream.channel.status + "\"  Watch at http://twitch.tv/" + message, liveStreamAnnouncementsChannel);
+                    }
+                    SixGaming.discordQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
+
+                    lastHost = 0;
+                    hostingTimestamps.push(new Date().getTime());
+                    while (hostingTimestamps.length > 3) {
+                        hostingTimestamps.splice(0, 1);
+                    }
+                } else {
+                    SixGaming.discordQueue("Sorry, " + from + ", but " + message + " is not live right now.");
+                }
+            });
         }
     },
 
@@ -682,8 +752,6 @@ SixGaming.discordMessages = {
             SixGaming.discordQueue("Exiting host mode.");
             manualHosting = false;
             currentHost = "";
-            nextCheckHost = 0;
-            secondaryChangeHost = 0;
         }
     },
 
@@ -825,7 +893,7 @@ SixGaming.discordMessages = {
                                     return;
                                 }
 
-                                hosts.push(message);
+                                hosts.push(message.toLowerCase());
                                 SixGaming.discordQueue(user + ", you have successfully added " + message + " as a streamer to be hosted.");
                             }
                         )
@@ -883,11 +951,6 @@ SixGaming.discordMessages = {
         if (message) {
             if (userCreatedChannels[user.id]) {
                 SixGaming.discordQueue("Sorry, " + user + ", but you can only create a voice channel once every five minutes.");
-                return;
-            }
-
-            if (user.voiceChannel) {
-                SixGaming.discordQueue("Sorry, " + user + ", but you are already chatting in " + user.voiceChannel.name + ".");
                 return;
             }
 
