@@ -15,6 +15,30 @@ Installation
 
         node index.js
 
+Database
+========
+
+The database is quite simple.  Here is the script that creates it:
+
+        CREATE TABLE game (
+            id int IDENTITY(1,1) NOT NULL,
+            game varchar(255) NOT NULL,
+            code varchar(50) NOT NULL
+        )
+        
+        CREATE TABLE host (
+            id int IDENTITY(1,1) NOT NULL,
+            streamer varchar(50) NOT NULL
+        )
+        
+        CREATE TABLE streamer(
+            id int IDENTITY(1,1) NOT NULL,
+            discord varchar(50) NOT NULL,
+            streamer varchar(50) NOT NULL,
+            code int NOT NULL,
+            validated bit NOT NULL CONSTRAINT DF_streamer_validated DEFAULT (0)
+        )
+
 settings.js
 ===========
 
@@ -32,16 +56,49 @@ The following should be the contents of settings.js:
                     autoConnect: false
                 }
             },
+            discord: {
+                token: "(Your token, retrieved from your Discord bot account)",
+                options: {
+                    autoReconnect: true
+                }
+            },
             twitch: {
                 clientId: "(Your client ID, retrieved from your Twitch connected app)",
                 clientSecret: "(Your client secret, retrieved from your Twitch connected app)",
                 redirectUri: "(Your redirect URI from your Twitch connected app)",
                 scopes: []
+            },
+            database: {
+                server: "(Your SQL server's IP)",
+                port: (Your SQL server's port number),
+                user: "(Your SQL server's user account name)",
+                password: "(Your SQL server's password)",
+                database: "(Your SQL server's database)",
+                pool: {
+                    max: 50,
+                    min: 0,
+                    idleTimeoutMillis: 30000
+                }
+            },
+            admin: {
+                username: "(Your Discord account name)",
+                discriminator: (Your Discord account discriminator, not including the pound sign)
             }
         };
 
 Version History
 ===============
+
+1.1 - 6/19/2016
+---------------
+
+This major release includes database connectivity and a Discord bot.
+
+* Allow Twitch hosting commands from Discord.
+* Allow users to register as Twitch streamers on Discord with Twitch confirmation.  This replaces the old hosting rotation system that had Twitch users manually entered. 
+* Created a secondary hosting rotation that users with the Podcasters role can freely add or remove from.  Streamers in the primary rotation are always given priority over this secondary rotation.
+* Allow Discord users to create voice channels that auto-delete after being empty for 5 minutes.
+* Added a system that creates Discord roles for games that can be subscribed to for notification. 
 
 1.0.1 - 3/7/2016
 ----------------
