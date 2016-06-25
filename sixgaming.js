@@ -22,6 +22,7 @@ var pjson = require("./package.json"),
         "discord"
     ],
     lastHost = 0,
+    wasEmptyLast = false,
     commandRotationWait = 5,
     commandRotationTimeout = 0,
     currentHost = "",
@@ -76,6 +77,19 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                                     return stream.channel.name.toLowerCase();
                                 });
 
+                                // Being empty once is usually a sign of an error.  Will try again next time.
+                                if (live.length === 0) {
+                                    if (!wasEmptyLast) {
+                                        console.log("Live list was empty.");
+                                        console.log(err, results);
+                                        wasEmptyLast = true;
+                                        setTimeout(checkStreams, 60000);
+                                        return;
+                                    }
+                                } else {
+                                    wasEmptyLast = false;
+                                }
+
                                 // Detect which streams have gone offline.
                                 for (key in liveChannels) {
                                     if (liveChannels.hasOwnProperty(key)) {
@@ -102,7 +116,7 @@ SixGaming.start = function(_irc, _discord, _twitch) {
 
                                 // Save channel data.
                                 streams.forEach(function(stream) {
-                                    liveChannels[stream.channel.name] = stream;
+                                    liveChannels[stream.channel.name.toLowerCase()] = stream;
                                 });
 
                                 // Discord notifications for new live channels.
@@ -273,11 +287,14 @@ SixGaming.start = function(_irc, _discord, _twitch) {
             streamers = data[0].map(function(streamer) {return streamer.streamer;});
             hosts = data[1].map(function(streamer) {return streamer.streamer;});
 
-            /*
-             irc.addListener("raw", function(message) {
-             // console.log(message);
-             });
-             */
+            irc.addListener("raw", function(message) {
+                // Add moderators.
+                if (message.command === "MODE" && message.args.length === 3 && message.args[0] === "#sixgaminggg" && message.args[1] === "+o") {
+                    SixGaming["+mode"](message.nick, "o", null, message);
+                }
+
+                // console.log(message);
+            });
 
             irc.addListener("error", function(message) {
                 console.log("ERROR", message);
