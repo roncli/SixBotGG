@@ -1190,14 +1190,12 @@ SixGaming.discordMessages = {
             return Math.random() - 0.5;
         });
 
-        for (index in user.voiceChannel.members) {
-            if (user.voiceChannel.members.hasOwnProperty(index)) {
-                SixGaming.discordQueue(user.voiceChannel.members[index] + ": " + owHeroes[index]);
-                if (message === "dupe" || message === "dupes") {
-                    owHeroes.sort(function() {
-                        return Math.random() - 0.5;
-                    });
-                }
+        for (index = 0; index < user.voiceChannel.members.length; index++) {
+            SixGaming.discordQueue(user.voiceChannel.members[index] + ": " + owHeroes[index]);
+            if (message === "dupe" || message === "dupes") {
+                owHeroes.sort(function() {
+                    return Math.random() - 0.5;
+                });
             }
         }
     },
