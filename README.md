@@ -89,6 +89,11 @@ The following should be the contents of settings.js:
 Version History
 ===============
 
+1.1.1 - 6/29/2016
+-----------------
+
+* Adds the `!randomonium` command.
+
 1.1 - 6/19/2016
 ---------------
 

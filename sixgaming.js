@@ -21,6 +21,29 @@ var pjson = require("./package.json"),
         "itunes",
         "discord"
     ],
+    owHeroes = [
+        "Genji",
+        "McCree",
+        "Pharah",
+        "Reaper",
+        "Soldier: 76",
+        "Tracer",
+        "Bastion",
+        "Hanzo",
+        "Junkrat",
+        "Mei",
+        "Torbjörn",
+        "Widowmaker",
+        "D.Va",
+        "Reinhardt",
+        "Roadhog",
+        "Winston",
+        "Zarya",
+        "Lúcio",
+        "Mercy",
+        "Symmetra",
+        "Zenyatta"
+    ],
     lastHost = 0,
     wasEmptyLast = false,
     commandRotationWait = 5,
@@ -1152,6 +1175,30 @@ SixGaming.discordMessages = {
                     SixGaming.discordQueue(response, user);
                 }
             )
+        }
+    },
+
+    randomonium: function(from, user, message) {
+        var index;
+
+        if (!user.voiceChannel) {
+            SixGaming.discordQueue("Sorry, " + user + ", but you must be in a voice channel to use this command.");
+            return;
+        }
+
+        owHeroes.sort(function() {
+            return Math.random() - 0.5;
+        });
+
+        for (index in user.voiceChannel.members) {
+            if (user.voiceChannel.members.hasOwnProperty(index)) {
+                SixGaming.discordQueue(user.voiceChannel.members[index] + ": " + owHeroes[index]);
+                if (message === "dupe" || message === "dupes") {
+                    owHeroes.sort(function() {
+                        return Math.random() - 0.5;
+                    });
+                }
+            }
         }
     },
 
