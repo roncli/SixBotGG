@@ -124,7 +124,7 @@ SixGaming.start = function(_irc, _discord, _twitch) {
 
                                 // Remove live channel data from offline streams.
                                 wentOffline.forEach(function(name) {
-                                    if (name === "SixGamingGG") {
+                                    if (name.toLowerCase() === "sixgaminggg") {
                                         discord.setStatus("online", null);
                                     }
                                     delete liveChannels[name];
@@ -144,7 +144,7 @@ SixGaming.start = function(_irc, _discord, _twitch) {
 
                                 // Discord notifications for new live channels.
                                 wentLive.forEach(function(stream) {
-                                    if (stream === "SixGamingGG") {
+                                    if (stream.toLowerCase() === "sixgaminggg") {
                                         if (liveChannels[stream].game) {
                                             SixGaming.discordQueue("@everyone - Six Gaming just went live on Twitch with \"" + liveChannels[stream].game + "\": \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
                                         } else {
@@ -199,7 +199,7 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                         updateHosting = function(live) {
                             var liveStreamers;
 
-                            if (liveChannels["SixGamingGG"]) {
+                            if (liveChannels["sixgaminggg"]) {
                                 // Six Gaming is live, no need to update hosting.
                                 setTimeout(checkStreams, 60000);
                                 return;
