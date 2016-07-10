@@ -89,6 +89,11 @@ The following should be the contents of settings.js:
 Version History
 ===============
 
+1.1.2 - 7/9/2016
+----------------
+
+* Fixed a bug with the `!randomonium` command.
+
 1.1.1 - 6/29/2016
 -----------------
 

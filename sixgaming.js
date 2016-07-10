@@ -1191,11 +1191,13 @@ SixGaming.discordMessages = {
         });
 
         for (index = 0; index < user.voiceChannel.members.length; index++) {
-            SixGaming.discordQueue(user.voiceChannel.members[index] + ": " + owHeroes[index]);
-            if (message === "dupe" || message === "dupes") {
-                owHeroes.sort(function() {
-                    return Math.random() - 0.5;
-                });
+            if (user.voiceChannel && user.voiceChannel.members[index].voiceChannel && user.voiceChannel.id === user.voiceChannel.members[index].voiceChannel.id && user.voiceChannel.members[index] && userChannels[user.voiceChannel.members[index].id] && userChannels[user.voiceChannel.members[index].id] === user.voiceChannel.id) {
+                SixGaming.discordQueue(user.voiceChannel.members[index] + ": " + owHeroes[index]);
+                if (message === "dupe" || message === "dupes") {
+                    owHeroes.sort(function() {
+                        return Math.random() - 0.5;
+                    });
+                }
             }
         }
     },
