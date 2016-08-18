@@ -89,6 +89,10 @@ The following should be the contents of settings.js:
 Version History
 ===============
 
+1.1.4
+-----
+* Fixed voice channel issues.
+
 1.1.3 - 7/23/2016
 -----------------
 * Added Ana to `!randomonium`.

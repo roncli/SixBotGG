@@ -11,8 +11,6 @@ var pjson = require("./package.json"),
     hostingTimestamps = [],
     liveChannels = {},
     channelDeletionTimeouts = {},
-    userChannels = {},
-    channelCounts = {},
     userCreatedChannels = {},
     autoCommandRotation = [
         "facebook",
@@ -393,8 +391,6 @@ SixGaming.start = function(_irc, _discord, _twitch) {
             });
 
             discord.addListener("voiceJoin", function(channel, user) {
-                userChannels[user.id] = channel.id;
-                channelCounts[channel.id] = channelCounts[channel.id] ? channelCounts[channel.id] + 1 : 1;
                 if (channelDeletionTimeouts[channel.id]) {
                     clearTimeout(channelDeletionTimeouts[channel.id]);
                     delete channelDeletionTimeouts[channel.id];
@@ -402,13 +398,7 @@ SixGaming.start = function(_irc, _discord, _twitch) {
             });
 
             discord.addListener("voiceLeave", function(channel, user) {
-                if (!userChannels[user.id]) {
-                    return;
-                }
-                channel = sixDiscord.channels.get("id", userChannels[user.id]);
-                delete userChannels[user.id];
-                channelCounts[channel.id]--;
-                if (channel.name !== "\u{1F4AC} General" && channelCounts[channel.id] === 0) {
+                if (channel.name !== "\u{1F4AC} General" && channel.members.length === 0) {
                     SixGaming.markEmptyVoiceChannel(channel);
                 }
             });
@@ -1007,7 +997,7 @@ SixGaming.discordMessages = {
                     return;
                 }
 
-                if (!channelCounts[channel.id] || channelCounts[channel.id] === 0) {
+                if (channel.members.length === 0) {
                     SixGaming.markEmptyVoiceChannel(channel);
                 }
                 userCreatedChannels[user.id] = setTimeout(function() {
@@ -1192,7 +1182,7 @@ SixGaming.discordMessages = {
         });
 
         for (index = 0; index < user.voiceChannel.members.length; index++) {
-            if (user.voiceChannel && user.voiceChannel.members[index].voiceChannel && user.voiceChannel.id === user.voiceChannel.members[index].voiceChannel.id && user.voiceChannel.members[index] && userChannels[user.voiceChannel.members[index].id] && userChannels[user.voiceChannel.members[index].id] === user.voiceChannel.id) {
+            if (user.voiceChannel && user.voiceChannel.members[index].voiceChannel && user.voiceChannel.id === user.voiceChannel.members[index].voiceChannel.id && user.voiceChannel.members[index]) {
                 SixGaming.discordQueue(user.voiceChannel.members[index] + ": " + owHeroes[index]);
                 if (message === "dupe" || message === "dupes") {
                     owHeroes.sort(function() {
