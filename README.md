@@ -89,8 +89,13 @@ The following should be the contents of settings.js:
 Version History
 ===============
 
-1.1.4
------
+1.1.5 - 9/20/2016
+-----------------
+* Fixed issues with discord.js upgrade.
+* Fixed a bug where the IRC bot would get stuck talking about the website.
+
+1.1.4 - 8/18/2016
+-----------------
 * Fixed voice channel issues.
 
 1.1.3 - 7/23/2016
