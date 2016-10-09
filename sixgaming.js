@@ -60,7 +60,9 @@ SixGaming.start = function(_irc, _discord, _twitch) {
     twitch = _twitch;
 
     var startup = function() {
+        console.log("Starting up...");
         db.query("select streamer from streamer where validated = 1; select streamer from host", {}, function(err, data) {
+            console.log("Got streamer data...");
             var readied = false,
 
                 checkStreams = function() {
@@ -287,7 +289,10 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                 },
 
                 ircConnect = function() {
+                    console.log("Connecting to IRC...");
                     irc.connect(function() {
+                        console.log("Connected.  Startup complete.");
+
                         irc.send("/raw CAP REQ :twitch.tv/membership");
 
                         irc.join("#sixgaminggg");
@@ -295,15 +300,19 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                 },
 
                 discordConnect = function() {
+                    console.log("Connecting to Discord...");
                     discord.login(settings.discord.token).catch(function(err) {
                         if (err) {
                             console.log(err);
                             discord.destroy().then(discordConnect).catch(discordConnect);
                         }
+                        console.log("Connected.");
                     });
                 };
 
             if (err) {
+                console.log(err);
+                console.log("Error!  Trying again in 60 seconds...");
                 setTimeout(startup, 60000);
                 return;
             }
@@ -358,6 +367,7 @@ SixGaming.start = function(_irc, _discord, _twitch) {
             });
 
             discord.addListener("ready", function() {
+                console.log("Discord ready.");
                 sixDiscord = discord.guilds.find("name", "Six Gaming");
                 sixBotGGChannel = sixDiscord.channels.find("name", "sixbotgg");
                 liveStreamAnnouncementsChannel = sixDiscord.channels.find("name", "live-stream-announcements");
@@ -603,7 +613,7 @@ SixGaming.ircMessages = {
 
     website: function(from, message) {
         if (!message) {
-            var index = autoCommandRotation.indexOf("discord");
+            var index = autoCommandRotation.indexOf("website");
             if (index !== -1) {
                 commandRotationWait = 5;
                 autoCommandRotation.splice(index, 1);
