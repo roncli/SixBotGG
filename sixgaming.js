@@ -98,9 +98,16 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                                 }
 
                                 // Get the list of live channels.
-                                live = streams.map(function(stream) {
-                                    return stream.channel.name.toLowerCase();
-                                });
+                                try {
+                                    live = streams.map(function(stream) {
+                                        return stream.channel.name.toLowerCase();
+                                    });
+                                } catch (err) {
+                                    console.log("Error checking streams.");
+                                    console.log(err, results);
+                                    setTimeout(checkStreams, 60000);
+                                    return;
+                                }
 
                                 // Being empty once is usually a sign of an error.  Will try again next time.
                                 if (live.length === 0) {
@@ -648,7 +655,7 @@ SixGaming.ircMessages = {
             twitch.getChannelStream(message, function(err, results) {
                 manualHosting = !err && results && results.stream;
                 if (manualHosting) {
-                    currentHost = message();
+                    currentHost = message;
                     SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
                     SixGaming.ircQueue("/host " + currentHost);
                     if (results.stream.game) {
@@ -777,7 +784,7 @@ SixGaming.discordMessages = {
             twitch.getChannelStream(message, function(err, results) {
                 manualHosting = !err && results && results.stream;
                 if (manualHosting) {
-                    currentHost = message();
+                    currentHost = message;
                     SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
                     SixGaming.ircQueue("/host " + currentHost);
                     if (results.stream.game) {
