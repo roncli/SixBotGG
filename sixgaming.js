@@ -90,7 +90,7 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                                     results._total = 0;
                                 }
 
-                                // Concate streams and continue getting more streams if necessary.
+                                // Concat streams and continue getting more streams if necessary.
                                 streams = streams.concat(results.streams);
                                 if (results._total > offset + 100) {
                                     getStreams(offset + 100);
@@ -715,8 +715,7 @@ SixGaming.ircMessages = {
                         "update streamer set code = 0, validated = 1 where streamer = @streamer;delete from host where streamer = @streamer",
                         {streamer: {type: db.VARCHAR(50), value: from}},
                         function(err, data) {
-                            var serverChannels = ["six-gaming-info", "live-stream-announcements", "general", "podcast", "podcasters", "sixbotgg"],
-                                users, user, hostIndex;
+                            var users, user, hostIndex;
 
                             if (err) {
                                 SixGaming.ircQueue("Sorry, " + from + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
@@ -725,7 +724,8 @@ SixGaming.ircMessages = {
 
                             users = discord.users.findAll("username", username);
                             if (users.length !== 0) {
-                                user = users.find("discriminator", discriminator);
+                                console.log(users[0]);
+                                user = users.find((u) => u.discriminator === discriminator);
                             }
                             if (user) {
                                 sixDiscord.member(user).addRole(streamersRole);
