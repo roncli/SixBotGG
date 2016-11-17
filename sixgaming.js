@@ -724,7 +724,6 @@ SixGaming.ircMessages = {
 
                             users = discord.users.findAll("username", username);
                             if (users.length !== 0) {
-                                console.log(users[0]);
                                 user = users.find((u) => u.discriminator === discriminator);
                             }
                             if (user) {
