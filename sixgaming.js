@@ -42,7 +42,8 @@ var pjson = require("./package.json"),
         "Mercy",
         "Symmetra",
         "Zenyatta",
-        "Ana"
+        "Ana",
+        "Sombra"
     ],
     lastHost = 0,
     wasEmptyLast = false,
