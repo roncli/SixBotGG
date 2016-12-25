@@ -154,6 +154,7 @@ SixGaming.start = function(_tmi, _discord, _twitch) {
 
                                 // Discord notifications for new live channels.
                                 wentLive.forEach(function(stream) {
+                                    return; // TODO - REMOVE THIS LINE!
                                     if (stream.toLowerCase() === "sixgaminggg") {
                                         if (liveChannels[stream].game) {
                                             SixGaming.discordQueue("@everyone - Six Gaming just went live on Twitch with \"" + liveChannels[stream].game + "\": \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
@@ -706,7 +707,7 @@ SixGaming.tmiMessages = {
                     code: {type: db.INT, value: code}
                 },
                 function(err, data) {
-                    var user, matches, username, discriminator;
+                    var id, user, matches;
 
                     if (err) {
                         SixGaming.tmiQueue("Sorry, " + from + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
@@ -717,10 +718,7 @@ SixGaming.tmiMessages = {
                         return;
                     }
 
-                    user = data[0][0].discord;
-                    matches = userParse.exec(user);
-                    username = matches[1];
-                    discriminator = matches[2];
+                    id = data[0][0].discord;
 
                     db.query(
                         "update streamer set code = 0, validated = 1 where streamer = @streamer;delete from host where streamer = @streamer",
@@ -733,16 +731,14 @@ SixGaming.tmiMessages = {
                                 return;
                             }
 
-                            users = discord.users.findAll("username", username);
+                            users = discord.users.findAll("id", id);
                             if (users.length !== 0) {
-                                user = users.find((u) => u.discriminator === discriminator);
+                                user = users[0];
                             }
-                            if (user) {
-                                sixDiscord.member(user).addRole(streamersRole);
-                            }
+                            sixDiscord.member(user).addRole(streamersRole);
 
                             sixDiscord.createChannel("twitch-" + from, "text").then(function(channel) {
-                                channel.setTopic("This channel is for @" + username + "'s Twitch stream.  Follow @" + username + " on Twitch at http://twitch.tv/" + from + ".").then(function() {
+                                channel.setTopic("This channel is for " + user + "'s Twitch stream.  Follow " + user + " on Twitch at http://twitch.tv/" + from + ".").then(function() {
                                     channel.setPosition(9999).then(SixGaming.sortDiscordChannels).catch(function(err) {
                                         console.log("Problem setting position.");
                                         console.log(err);
@@ -846,9 +842,9 @@ SixGaming.discordMessages = {
 
                 db.query(
                     "select discord, code, validated from streamer where streamer = @streamer",
-                    {streamer: {type: db.VARCHAR(50), value: from}},
+                    {streamer: {type: db.VARCHAR(50), value: message}},
                     function(err, data) {
-                        var username = user.username + "#" + user.discriminator,
+                        var id = user.id,
                             code;
 
                         if (err) {
@@ -857,8 +853,15 @@ SixGaming.discordMessages = {
                         }
 
                         if (data && data[0] && data[0][0]) {
-                            if (data[0][0].discord !== username) {
-                                SixGaming.discordQueue("Sorry, " + user + ", but " + message + " has already been registered by @" + discord + ".  If this is in error, get a hold of roncli for fixing.");
+                            if (data[0][0].discord !== id) {
+                                let users = discord.users.findAll("id", data[0][0].discord),
+                                    registeredUser;
+                                
+                                if (users.length !== 0) {
+                                    registeredUser = users[0];
+                                    SixGaming.discordQueue("Sorry, " + user + ", but " + message + " has already been registered by " + registeredUser + ".  If this is in error, get a hold of roncli for fixing.");
+                                }
+
                                 return;
                             }
 
@@ -876,7 +879,7 @@ SixGaming.discordMessages = {
                             "insert into streamer (streamer, discord, code) values (@streamer, @discord, @code)",
                             {
                                 streamer: {type: db.VARCHAR(50), value: message},
-                                discord: {type: db.VARCHAR(50), value: username},
+                                discord: {type: db.VARCHAR(50), value: id},
                                 code: {type: db.INT, value: code}
                             },
                             function(err) {
@@ -898,7 +901,7 @@ SixGaming.discordMessages = {
         if (!message) {
             db.query(
                 "select id, streamer from streamer where discord = @discord",
-                {discord: {type: db.VARCHAR(50), value: user.username + "#" + user.discriminator}},
+                {discord: {type: db.VARCHAR(50), value: user.id}},
                 function(err, data) {
                     var id, streamer;
 
@@ -1075,7 +1078,7 @@ SixGaming.discordMessages = {
                 hoist: false,
                 mentionable: true
             }).then(function(role) {
-                sixDiscord.member(user).addRole(streamersRole);
+                sixDiscord.member(user).addRole(role);
 
                 db.query(
                     "insert into game (game, code) values (@game, @code)",
@@ -1152,7 +1155,7 @@ SixGaming.discordMessages = {
 
             role = sixDiscord.roles.find("name", message);
 
-            sixDiscord.member(user).addRole(streamersRole).then(function() {
+            sixDiscord.member(user).addRole(role).then(function() {
                 SixGaming.discordQueue(user + ", you have been setup to be notified whenever " + role.name + " is mentioned!");
             }).catch(function(err) {
                 console.log(err);
@@ -1180,9 +1183,7 @@ SixGaming.discordMessages = {
             role = sixDiscord.roles.find("name", message);
 
             // For discord.js 9.0.3 and later:
-            // sixDiscord.member(user).removeRole(streamersRole);
-            sixDiscord.member(user).roles.delete(role.id);
-            sixDiscord.member(user).setRoles(sixDiscord.member(user).roles).then(function() {
+            sixDiscord.member(user).removeRole(role).then(function() {
                 SixGaming.discordQueue(user + ", you have been setup to no longer be notified whenever " + role.name + " is mentioned!");
             }).catch(function(err) {
                 console.log(err);
@@ -1213,9 +1214,10 @@ SixGaming.discordMessages = {
     },
 
     randomonium: function(from, user, message) {
-        var index;
+        var voiceChannel = sixDiscord.member(user).voiceChannel,
+            index = 0;
 
-        if (!user.voiceChannel) {
+        if (!voiceChannel) {
             SixGaming.discordQueue("Sorry, " + user + ", but you must be in a voice channel to use this command.");
             return;
         }
@@ -1224,16 +1226,17 @@ SixGaming.discordMessages = {
             return Math.random() - 0.5;
         });
 
-        for (index = 0; index < user.voiceChannel.members.size; index++) {
-            if (user.voiceChannel && user.voiceChannel.members[index].voiceChannel && user.voiceChannel.id === user.voiceChannel.members[index].voiceChannel.id && user.voiceChannel.members[index]) {
-                SixGaming.discordQueue(user.voiceChannel.members[index] + ": " + owHeroes[index]);
+        voiceChannel.members.forEach(function(member) {
+            if (voiceChannel && member.voiceChannel && voiceChannel.id === member.voiceChannel.id) {
+                SixGaming.discordQueue(member + ": " + owHeroes[index]);
                 if (message === "dupe" || message === "dupes") {
                     owHeroes.sort(function() {
                         return Math.random() - 0.5;
                     });
                 }
+                index++;
             }
-        }
+        });
     },
 
     help: function(from, user, message) {
