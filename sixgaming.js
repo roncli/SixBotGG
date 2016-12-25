@@ -154,7 +154,6 @@ SixGaming.start = function(_tmi, _discord, _twitch) {
 
                                 // Discord notifications for new live channels.
                                 wentLive.forEach(function(stream) {
-                                    return; // TODO - REMOVE THIS LINE!
                                     if (stream.toLowerCase() === "sixgaminggg") {
                                         if (liveChannels[stream].game) {
                                             SixGaming.discordQueue("@everyone - Six Gaming just went live on Twitch with \"" + liveChannels[stream].game + "\": \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
