@@ -89,6 +89,10 @@ The following should be the contents of settings.js:
 Version History
 ===============
 
+1.2
+---
+* Replaced IRC library with tmi.js for smoother IRC operation.
+
 1.1.5 - 9/20/2016
 -----------------
 * Fixed issues with discord.js upgrade.

@@ -51,12 +51,12 @@ var pjson = require("./package.json"),
     commandRotationTimeout = 0,
     currentHost = "",
     manualHosting = false,
-    irc, discord, twitch, sixDiscord, sixBotGGChannel, liveStreamAnnouncementsChannel, streamersRole;
+    tmi, discord, twitch, sixDiscord, sixBotGGChannel, liveStreamAnnouncementsChannel, streamersRole;
 
 SixGaming = {};
 
-SixGaming.start = function(_irc, _discord, _twitch) {
-    irc = _irc;
+SixGaming.start = function(_tmi, _discord, _twitch) {
+    tmi = _tmi;
     discord = _discord;
     twitch = _twitch;
 
@@ -162,8 +162,8 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                                         }
                                         currentHost = "";
                                         manualHosting = false;
-                                        SixGaming.ircQueue("/unhost");
-                                        SixGaming.ircQueue("What's going on everyone?  Six Gaming is live!");
+                                        tmi.unhost("sixgaminggg")
+                                        SixGaming.tmiQueue("What's going on everyone?  Six Gaming is live!");
                                         discord.user.setStatus("online", liveChannels[stream].channel.status, "http://twitch.tv/SixGamingGG");
                                     } else if (streamers.indexOf(stream.toLowerCase()) !== -1) {
                                         if (liveChannels[stream].game) {
@@ -249,8 +249,13 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                             if (liveStreamers.length > 0) {
                                 if (liveStreamers[0] !== currentHost) {
                                     currentHost = liveStreamers[0].toLowerCase();
-                                    SixGaming.ircQueue("Now hosting Six Gamer " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
-                                    SixGaming.ircQueue("/host " + currentHost);
+                                    SixGaming.tmiQueue("Now hosting Six Gamer " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
+                                    tmi.host("sixgaminggg", currentHost).catch(function(err) {
+                                        if (err !== "bad_host_hosting") {
+                                            console.log("Problem hosting channel.");
+                                            console.log(err);
+                                        }
+                                    });
                                     lastHost = new Date().getTime();
                                     hostingTimestamps.push(new Date().getTime());
                                     while (hostingTimestamps.length > 3) {
@@ -276,8 +281,13 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                             if (liveStreamers.length > 0) {
                                 if (liveStreamers[0] !== currentHost) {
                                     currentHost = liveStreamers[0].toLowerCase();
-                                    SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
-                                    SixGaming.ircQueue("/host " + currentHost);
+                                    SixGaming.tmiQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
+                                    tmi.host("sixgaminggg", currentHost).catch(function(err) {
+                                        if (err !== "bad_host_hosting") {
+                                            console.log("Problem hosting channel.");
+                                            console.log(err);
+                                        }
+                                    });
                                     lastHost = new Date().getTime();
                                     hostingTimestamps.push(new Date().getTime());
                                     while (hostingTimestamps.length > 3) {
@@ -296,14 +306,15 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                     getStreams(0);
                 },
 
-                ircConnect = function() {
+                tmiConnect = function() {
                     console.log("Connecting to IRC...");
-                    irc.connect(function() {
+                    tmi.connect().then(function() {
                         console.log("Connected.  Startup complete.");
 
-                        irc.send("/raw CAP REQ :twitch.tv/membership");
-
-                        irc.join("#sixgaminggg");
+                        tmi.raw("CAP REQ :twitch.tv/membership");
+                    }).catch(function(err) {
+                        console.log("Error connecting, will retry.");
+                        console.log(err);
                     });
                 },
 
@@ -328,49 +339,44 @@ SixGaming.start = function(_irc, _discord, _twitch) {
             streamers = data[0].map(function(streamer) {return streamer.streamer;});
             hosts = data[1].map(function(streamer) {return streamer.streamer;});
 
-            irc.addListener("raw", function(message) {
-                // Add moderators.
-                if (message.command === "MODE" && message.args.length === 3 && message.args[0] === "#sixgaminggg" && message.args[1] === "+o") {
-                    SixGaming["+mode"](message.nick, "o", null, message);
+            tmi.on("disconnected", function(message) {
+                console.log("DISCONNECTED", message);
+                tmi.disconnect().then(function() {
+                    tmiConnect();
+                }).catch(function() {
+                    tmiConnect();
+                });
+            });
+
+            tmi.on("message", function(channel, userstate, text, self) {
+                if (!self && channel === "#sixgaminggg") {
+                    SixGaming.tmiMessage(userstate["display-name"], text);
                 }
-
-                // console.log(message);
             });
 
-            irc.addListener("error", function(message) {
-                console.log("ERROR", message);
-                irc.disconnect(ircConnect);
-            });
-
-            irc.addListener("abort", function(message) {
-                console.log("ABORT", message);
-                irc.disconnect(ircConnect);
-            });
-
-            irc.addListener("netError", function(message) {
-                console.log("NETERROR", message);
-                irc.disconnect(ircConnect);
-            });
-
-            irc.addListener("message#sixgaminggg", function(from, text) {
-                SixGaming.ircMessage(from, text);
-            });
-
-            irc.addListener("names#sixgaminggg", function(nicks) {
-                SixGaming.names(nicks);
-            });
-
-            irc.addListener("join#sixgaminggg", function(nick, message) {
-                SixGaming.join(nick, message);
-            });
-
-            irc.addListener("part#sixgaminggg", function(nick, reason, message) {
-                SixGaming.part(nick, reason, message);
-            });
-
-            irc.addListener("+mode", function(channel, by, mode, argument, message) {
+            tmi.on("names", function(channel, users) {
                 if (channel === "#sixgaminggg") {
-                    SixGaming["+mode"](by, mode, argument, message);
+                    users.forEach(function(user) {
+                        SixGaming.join(user);
+                    });
+                }
+            })
+
+            tmi.on("join", function(channel, username, self) {
+                if (!self && channel === "#sixgaminggg") {
+                    SixGaming.join(username);
+                }
+            });
+
+            tmi.on("part", function(channel, username, self) {
+                if (!self && channel === "#sixgaminggg") {
+                    SixGaming.part(username);
+                }
+            });
+
+            tmi.on("mod", function(channel, username) {
+                if (channel === "#sixgaminggg") {
+                    SixGaming["+mode"](username, "o");
                 }
             });
 
@@ -385,7 +391,7 @@ SixGaming.start = function(_irc, _discord, _twitch) {
                     readied = true;
 
                     // Connect to IRC.
-                    ircConnect();
+                    tmiConnect();
 
                     // Setup IRC command rotation.
                     SixGaming.commandRotation();
@@ -435,7 +441,7 @@ SixGaming.start = function(_irc, _discord, _twitch) {
 
 SixGaming.commandRotation = function() {
     if (commandRotationWait <= 0) {
-        SixGaming.ircMessages[autoCommandRotation[0]]("SixBotGG");
+        SixGaming.tmiMessages[autoCommandRotation[0]]("SixBotGG");
     }
 
     commandRotationTimeout = setTimeout(function() {
@@ -443,8 +449,8 @@ SixGaming.commandRotation = function() {
     }, 600000);
 };
 
-SixGaming.ircQueue = function(message) {
-    irc.say("#sixgaminggg", message);
+SixGaming.tmiQueue = function(message) {
+    tmi.say("sixgaminggg", message);
 };
 
 SixGaming.discordQueue = function(message, channel) {
@@ -477,7 +483,10 @@ SixGaming.sortDiscordChannels = function() {
                 if (index < channels.length) {
                     positionChannel();
                 }
-            });
+            }).catch(function(err) {
+                console.log("Problem repositioning channels.");
+                console.log(err);
+            });;
         };
 
     positionChannel();
@@ -490,23 +499,19 @@ SixGaming.markEmptyVoiceChannel = function(channel) {
     }, 300000)
 };
 
-SixGaming.names = function(_nicks) {
-    nicks = _nicks;
-};
-
-SixGaming.join = function(nick, message) {
+SixGaming.join = function(nick) {
     nicks[nick] = "";
 };
 
-SixGaming.part = function(nick, reason, message) {
+SixGaming.part = function(nick) {
     delete(nicks[nick]);
 };
 
-SixGaming["+mode"] = function(by, mode, argument, message) {
-    if (mode === "o" && nicks[message.args[2]] !== "o") {
-        nicks[message.args[2]] = "o";
-        if (message.args[2] !== "sixbotgg" && message.args[2] !== "sixgaminggg") {
-            SixGaming.ircQueue("Hi, " + message.args[2] + "! HeyGuys");
+SixGaming["+mode"] = function(nick, mode) {
+    if (mode === "o" && nicks[nick] !== "o") {
+        nicks[nick] = "o";
+        if (nick !== "sixbotgg" && nick !== "sixgaminggg") {
+            SixGaming.tmiQueue("Hi, " + nick + "! HeyGuys");
         }
     }
 };
@@ -526,19 +531,19 @@ SixGaming.isPodcaster = function(user) {
     return false;
 };
 
-SixGaming.ircMessage = function(from, text) {
+SixGaming.tmiMessage = function(from, text) {
     var matches = messageParse.exec(text);
 
     commandRotationWait--;
 
     if (matches) {
-        if (SixGaming.ircMessages[matches[1]]) {
-            SixGaming.ircMessages[matches[1]].call(this, from, matches[2]);
+        if (SixGaming.tmiMessages[matches[1]]) {
+            SixGaming.tmiMessages[matches[1]].call(this, from, matches[2]);
         }
     }
 };
 
-SixGaming.ircMessages = {
+SixGaming.tmiMessages = {
     facebook: function(from, message) {
         if (!message) {
             var index = autoCommandRotation.indexOf("facebook");
@@ -547,7 +552,7 @@ SixGaming.ircMessages = {
                 autoCommandRotation.splice(index, 1);
                 autoCommandRotation.push("facebook");
             }
-            SixGaming.ircQueue("Check out Six Gaming on Facebook at http://fb.me/SixGamingGG");
+            SixGaming.tmiQueue("Check out Six Gaming on Facebook at http://fb.me/SixGamingGG");
             clearTimeout(commandRotationTimeout);
             commandRotationTimeout = setTimeout(function() {
                 SixGaming.commandRotation();
@@ -563,7 +568,7 @@ SixGaming.ircMessages = {
                 autoCommandRotation.splice(index, 1);
                 autoCommandRotation.push("twitter");
             }
-            SixGaming.ircQueue("Follow Six Gaming on Twitter at http://twitter.com/SixGamingGG");
+            SixGaming.tmiQueue("Follow Six Gaming on Twitter at http://twitter.com/SixGamingGG");
             clearTimeout(commandRotationTimeout);
             commandRotationTimeout = setTimeout(function() {
                 SixGaming.commandRotation();
@@ -579,7 +584,7 @@ SixGaming.ircMessages = {
                 autoCommandRotation.splice(index, 1);
                 autoCommandRotation.push("youtube");
             }
-            SixGaming.ircQueue("Visit Six Gaming's YouTube page for a complete archive of our podcast at http://ronc.li/six-youtube");
+            SixGaming.tmiQueue("Visit Six Gaming's YouTube page for a complete archive of our podcast at http://ronc.li/six-youtube");
             clearTimeout(commandRotationTimeout);
             commandRotationTimeout = setTimeout(function() {
                 SixGaming.commandRotation();
@@ -595,7 +600,7 @@ SixGaming.ircMessages = {
                 autoCommandRotation.splice(index, 1);
                 autoCommandRotation.push("itunes");
             }
-            SixGaming.ircQueue("Subscribe to Six Gaming's video podcast on iTunes at http://ronc.li/six-itunes");
+            SixGaming.tmiQueue("Subscribe to Six Gaming's video podcast on iTunes at http://ronc.li/six-itunes");
             clearTimeout(commandRotationTimeout);
             commandRotationTimeout = setTimeout(function() {
                 SixGaming.commandRotation();
@@ -611,7 +616,7 @@ SixGaming.ircMessages = {
                 autoCommandRotation.splice(index, 1);
                 autoCommandRotation.push("discord");
             }
-            SixGaming.ircQueue("Join the Six Gaming Discord server for all the memes!  We are a community of gamers that enjoy playing together.  Join at http://ronc.li/six-discord!");
+            SixGaming.tmiQueue("Join the Six Gaming Discord server for all the memes!  We are a community of gamers that enjoy playing together.  Join at http://ronc.li/six-discord!");
             clearTimeout(commandRotationTimeout);
             commandRotationTimeout = setTimeout(function() {
                 SixGaming.commandRotation();
@@ -627,7 +632,7 @@ SixGaming.ircMessages = {
                 autoCommandRotation.splice(index, 1);
                 autoCommandRotation.push("website");
             }
-            SixGaming.ircQueue("We have a website?  Yes, we do!  Visit us at http://six.gg for everything Six Gaming!");
+            SixGaming.tmiQueue("We have a website?  Yes, we do!  Visit us at http://six.gg for everything Six Gaming!");
             clearTimeout(commandRotationTimeout);
             commandRotationTimeout = setTimeout(function() {
                 SixGaming.commandRotation();
@@ -637,19 +642,19 @@ SixGaming.ircMessages = {
 
     version: function(from, message) {
         if (!message) {
-            SixGaming.ircQueue("SixBotGG by roncli, Version " + pjson.version);
+            SixGaming.tmiQueue("SixBotGG by roncli, Version " + pjson.version);
         }
     },
 
     host: function(from, message) {
         if (message && SixGaming.isAdmin(from)) {
             if (liveChannels["SixGamingGG"]) {
-                SixGaming.ircQueue("Sorry, " + from + ", but Six Gaming is live right now!");
+                SixGaming.tmiQueue("Sorry, " + from + ", but Six Gaming is live right now!");
                 return;
             }
 
             if (hostingTimestamps.length > 2 && hostingTimestamps[0] + 1805000 > new Date().getTime()) {
-                SixGaming.ircQueue("Sorry, " + from + ", but I can only host 3 times within 30 minutes.");
+                SixGaming.tmiQueue("Sorry, " + from + ", but I can only host 3 times within 30 minutes.");
                 return;
             }
 
@@ -657,8 +662,13 @@ SixGaming.ircMessages = {
                 manualHosting = !err && results && results.stream;
                 if (manualHosting) {
                     currentHost = message;
-                    SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
-                    SixGaming.ircQueue("/host " + currentHost);
+                    SixGaming.tmiQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
+                    tmi.host("sixgaminggg", currentHost).catch(function(err) {
+                        if (err !== "bad_host_hosting") {
+                            console.log("Problem hosting channel.");
+                            console.log(err);
+                        }
+                    });
                     if (results.stream.game) {
                         SixGaming.discordQueue(message + " has been hosted by Six Gaming on Twitch, with \"" + results.stream.game + "\": \"" + results.stream.channel.status + "\"  Watch at http://twitch.tv/" + message, liveStreamAnnouncementsChannel);
                     } else {
@@ -671,7 +681,7 @@ SixGaming.ircMessages = {
                         hostingTimestamps.splice(0, 1);
                     }
                 } else {
-                    SixGaming.ircQueue("Sorry, " + from + ", but " + message + " is not live right now.");
+                    SixGaming.tmiQueue("Sorry, " + from + ", but " + message + " is not live right now.");
                 }
             });
         }
@@ -679,7 +689,7 @@ SixGaming.ircMessages = {
 
     unhost: function(from, message) {
         if (!message && SixGaming.isAdmin(from)) {
-            SixGaming.ircQueue("/unhost");
+            tmi.unhost("sixgaminggg");
             manualHosting = false;
             currentHost = "";
         }
@@ -699,7 +709,7 @@ SixGaming.ircMessages = {
                     var user, matches, username, discriminator;
 
                     if (err) {
-                        SixGaming.ircQueue("Sorry, " + from + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
+                        SixGaming.tmiQueue("Sorry, " + from + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
                         return;
                     }
 
@@ -719,7 +729,7 @@ SixGaming.ircMessages = {
                             var users, user, hostIndex;
 
                             if (err) {
-                                SixGaming.ircQueue("Sorry, " + from + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
+                                SixGaming.tmiQueue("Sorry, " + from + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
                                 return;
                             }
 
@@ -733,16 +743,22 @@ SixGaming.ircMessages = {
 
                             sixDiscord.createChannel("twitch-" + from, "text").then(function(channel) {
                                 channel.setTopic("This channel is for @" + username + "'s Twitch stream.  Follow @" + username + " on Twitch at http://twitch.tv/" + from + ".").then(function() {
-                                    channel.setPosition(9999).then(SixGaming.sortDiscordChannels);
+                                    channel.setPosition(9999).then(SixGaming.sortDiscordChannels).catch(function(err) {
+                                        console.log("Problem setting position.");
+                                        console.log(err);
+                                    });
                                 });
 
-                                SixGaming.ircQueue("You're all set, " + from + ". You are now a Six Gaming streamer!");
+                                SixGaming.tmiQueue("You're all set, " + from + ". You are now a Six Gaming streamer!");
                                 SixGaming.discordQueue(user + " is now setup as a Six Gaming streamer at http://twitch.tv/" + from + " and their Discord channel has been created at " + channel + ".");
                                 streamers.push(from.toLowerCase());
                                 hostIndex = hosts.indexOf(from);
                                 if (hostIndex !== -1) {
                                     hosts.splice(hostIndex, 1);
                                 }
+                            }).catch(function(err) {
+                                console.log("Problem creating channel.");
+                                console.log(err);
                             });
                         }
                     );
@@ -785,8 +801,13 @@ SixGaming.discordMessages = {
                 manualHosting = !err && results && results.stream;
                 if (manualHosting) {
                     currentHost = message;
-                    SixGaming.ircQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
-                    SixGaming.ircQueue("/host " + currentHost);
+                    SixGaming.tmiQueue("Now hosting " + currentHost + ".  Check out their stream at http://twitch.tv/" + currentHost + "!");
+                    tmi.host("sixgaminggg", currentHost).catch(function(err) {
+                        if (err !== "bad_host_hosting") {
+                            console.log("Problem hosting channel.");
+                            console.log(err);
+                        }
+                    });
                     if (results.stream.game) {
                         SixGaming.discordQueue(message + " has been hosted by Six Gaming on Twitch, with \"" + results.stream.game + "\": \"" + results.stream.channel.status + "\"  Watch at http://twitch.tv/" + message, liveStreamAnnouncementsChannel);
                     } else {
@@ -808,7 +829,7 @@ SixGaming.discordMessages = {
 
     unhost: function(from, user, message) {
         if (!message && SixGaming.isPodcaster(user)) {
-            SixGaming.ircQueue("/unhost");
+            tmi.unhost("sixgaminggg");
             SixGaming.discordQueue("Exiting host mode.");
             manualHosting = false;
             currentHost = "";
@@ -1067,11 +1088,20 @@ SixGaming.discordMessages = {
 
                 sixDiscord.createChannel("game-" + short, "text").then(function(channel) {
                     channel.setTopic("This channel is for discussion of " + game + ".  Enter `!notify " + short + "` in #sixbotgg to be notified when others wish to play.  Mention @" + short + " to alert others when you wish to play!").then(function() {
-                        channel.setPosition(9999).then(SixGaming.sortDiscordChannels);
+                        channel.setPosition(9999).then(SixGaming.sortDiscordChannels).catch(function(err) {
+                            console.log("Problem setting position on channel.");
+                            console.log(err);
+                        });;
+                    }).catch(function(err) {
+                        console.log("Problem setting topic of channel.");
+                        console.log(err);
                     });
 
                     SixGaming.discordQueue(user + ", " + role + " has been setup as a mentionable role with you as the first member!  You may also discuss the game " + game + " in " + channel + ".  Anyone may join this role to be notified by entering `!notify " + short + "`.");
-                });
+                }).catch(function(err) {
+                    console.log("Problem creating channel.");
+                    console.log(err);
+                });;
             }).catch(function(err) {
                 console.log(err);
                 SixGaming.discordQueue("Sorry, " + user + ", but there was a problem with adding this role to Discord.");
@@ -1168,7 +1198,7 @@ SixGaming.discordMessages = {
                     var response = "You may use `!notify <game>` for the following games:";
 
                     if (err || !data || !data[0]) {
-                        SixGaming.ircQueue("Sorry, " + from + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
+                        SixGaming.tmiQueue("Sorry, " + from + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
                         return;
                     }
 
