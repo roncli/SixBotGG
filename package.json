@@ -1,6 +1,6 @@
 {
     "name": "SixBotGG",
-    "version": "1.2",
+    "version": "1.2.1",
     "description": "A Twitch IRC bot for Six Gaming.",
     "homepage": "https://github.com/roncli/SixBotGG",
     "bugs": {

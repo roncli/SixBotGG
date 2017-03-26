@@ -89,6 +89,10 @@ The following should be the contents of settings.js:
 Version History
 ===============
 
+1.2.1 - 3/25/2017
+-----------------
+* Added Sombra and Orisa to `!randomonium`.
+
 1.2 - 12/24/2016
 ----------------
 * Replaced IRC library with tmi.js for smoother IRC operation.
