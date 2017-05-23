@@ -163,7 +163,7 @@ SixGaming.start = function(_tmi, _discord, _twitch) {
                                         }
                                         currentHost = "";
                                         manualHosting = false;
-                                        tmi.unhost("sixgaminggg")
+                                        tmi.unhost("sixgaminggg");
                                         SixGaming.tmiQueue("What's going on everyone?  Six Gaming is live!");
                                         discord.user.setStatus("online", liveChannels[stream].channel.status, "http://twitch.tv/SixGamingGG");
                                     } else if (streamers.indexOf(stream.toLowerCase()) !== -1) {
@@ -361,7 +361,7 @@ SixGaming.start = function(_tmi, _discord, _twitch) {
                         SixGaming.join(user);
                     });
                 }
-            })
+            });
 
             tmi.on("join", function(channel, username, self) {
                 if (!self && channel === "#sixgaminggg") {
@@ -463,16 +463,8 @@ SixGaming.discordQueue = function(message, channel) {
 
 SixGaming.sortDiscordChannels = function() {
     var channels = Array.from(sixDiscord.channels.filter(function(channel) {
-        return channel.name.startsWith("twitch-") || channel.name.startsWith("game-");
+        return channel.name.startsWith("twitch-");
     }).values()).sort(function(a, b) {
-        if (a.name.startsWith("twitch-") && b.name.startsWith("game-")) {
-            return -1;
-        }
-
-        if (a.name.startsWith("game-") && b.name.startsWith("twitch-")) {
-            return 1;
-        }
-
         return a.name.localeCompare(b.name);
     }),
         index = 0,
@@ -487,7 +479,7 @@ SixGaming.sortDiscordChannels = function() {
             }).catch(function(err) {
                 console.log("Problem repositioning channels.");
                 console.log(err);
-            });;
+            });
         };
 
     positionChannel();
@@ -497,7 +489,7 @@ SixGaming.markEmptyVoiceChannel = function(channel) {
     channelDeletionTimeouts[channel.id] = setTimeout(function() {
         channel.delete();
         delete channelDeletionTimeouts[channel.id];
-    }, 300000)
+    }, 300000);
 };
 
 SixGaming.join = function(nick) {
@@ -505,7 +497,7 @@ SixGaming.join = function(nick) {
 };
 
 SixGaming.part = function(nick) {
-    delete(nicks[nick]);
+    delete nicks[nick];
 };
 
 SixGaming["+mode"] = function(nick, mode) {
@@ -890,9 +882,9 @@ SixGaming.discordMessages = {
 
                                 SixGaming.discordQueue(user + ", please log in to Twitch as " + message + ", visit http://twitch.tv/SixGamingGG, and enter the command `!confirm " + code + "` into chat.");
                             }
-                        )
+                        );
                     }
-                )
+                );
             });
         }
     },
@@ -939,7 +931,7 @@ SixGaming.discordMessages = {
                             }
                             SixGaming.discordQueue(user + ", you have been removed as a streamer.");
                         }
-                    )
+                    );
                 }
             );
         }
@@ -981,9 +973,9 @@ SixGaming.discordMessages = {
                                 hosts.push(message.toLowerCase());
                                 SixGaming.discordQueue(user + ", you have successfully added " + message + " as a streamer to be hosted.");
                             }
-                        )
+                        );
                     }
-                )
+                );
             });
         }
     },
@@ -1026,7 +1018,7 @@ SixGaming.discordMessages = {
 
                             SixGaming.discordQueue(user + ", " + message + " has been removed as a hosted streamer.");
                         }
-                    )
+                    );
                 }
             );
         }
@@ -1088,23 +1080,6 @@ SixGaming.discordMessages = {
                     },
                     function() {}
                 );
-
-                sixDiscord.createChannel("game-" + short, "text").then(function(channel) {
-                    channel.setTopic("This channel is for discussion of " + game + ".  Enter `!notify " + short + "` in #sixbotgg to be notified when others wish to play.  Mention @" + short + " to alert others when you wish to play!").then(function() {
-                        channel.setPosition(9999).then(SixGaming.sortDiscordChannels).catch(function(err) {
-                            console.log("Problem setting position on channel.");
-                            console.log(err);
-                        });;
-                    }).catch(function(err) {
-                        console.log("Problem setting topic of channel.");
-                        console.log(err);
-                    });
-
-                    SixGaming.discordQueue(user + ", " + role + " has been setup as a mentionable role with you as the first member!  You may also discuss the game " + game + " in " + channel + ".  Anyone may join this role to be notified by entering `!notify " + short + "`.");
-                }).catch(function(err) {
-                    console.log("Problem creating channel.");
-                    console.log(err);
-                });;
             }).catch(function(err) {
                 console.log(err);
                 SixGaming.discordQueue("Sorry, " + user + ", but there was a problem with adding this role to Discord.");
@@ -1113,7 +1088,7 @@ SixGaming.discordMessages = {
     },
 
     removegame: function(from, user, message) {
-        if (message && user.username === settings.admin.username && user.discriminator == settings.admin.discriminator) {
+        if (message && user.username === settings.admin.username && user.discriminator === settings.admin.discriminator) {
             message = message.toLowerCase();
 
             if (sixDiscord.roles.findAll("name", message).length === 0) {
@@ -1121,13 +1096,7 @@ SixGaming.discordMessages = {
                 return;
             }
 
-            if (sixDiscord.channels.findAll("name", "game-" + message).length === 0) {
-                SixGaming.discordQueue("Sorry, " + user + ", but the role " + message + " is not a role that can be removed using this command.");
-                return;
-            }
-
             sixDiscord.roles.find("name", message).delete();
-            sixDiscord.channels.find("name", "game-" + message).delete();
 
             db.query(
                 "delete from game where code = @code", {code: {type: db.VARCHAR(50), value: message}}, function() {}
@@ -1145,11 +1114,6 @@ SixGaming.discordMessages = {
 
             if (sixDiscord.roles.findAll("name", message).length === 0) {
                 SixGaming.discordQueue("Sorry, " + user + ", but the game " + message + " does not exist.");
-                return;
-            }
-
-            if (sixDiscord.channels.findAll("name", "game-" + message).length === 0) {
-                SixGaming.discordQueue("Sorry, " + user + ", but the role " + message + " is not a role that you can be notified for using this command.");
                 return;
             }
 
@@ -1172,11 +1136,6 @@ SixGaming.discordMessages = {
 
             if (sixDiscord.roles.findAll("name", message).length === 0) {
                 SixGaming.discordQueue("Sorry, " + user + ", but the game " + message + " does not exist.");
-                return;
-            }
-
-            if (sixDiscord.channels.findAll("name", "game-" + message).length === 0) {
-                SixGaming.discordQueue("Sorry, " + user + ", but the role " + message + " is not a role that you can be notified for using this command.");
                 return;
             }
 
@@ -1209,7 +1168,7 @@ SixGaming.discordMessages = {
 
                     SixGaming.discordQueue(response, user);
                 }
-            )
+            );
         }
     },
 
