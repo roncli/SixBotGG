@@ -3,8 +3,8 @@ var pjson = require("./package.json"),
     db = require("./database"),
     messageParse = /^!([^ ]+)(?: +(.+[^ ]))? *$/,
     codeParse = /^[1-9][0-9]{2}$/,
-    userParse = /^([^#]+)#([1-9][0-9]+)$/,
     addGameParse = /^([a-zA-Z0-9]{2,50}) +(.{2,255})$/,
+    SixGaming = {},
     nicks = {},
     streamers = [],
     hosts = [],
@@ -52,9 +52,7 @@ var pjson = require("./package.json"),
     commandRotationTimeout = 0,
     currentHost = "",
     manualHosting = false,
-    tmi, discord, twitch, sixDiscord, sixBotGGChannel, liveStreamAnnouncementsChannel, streamersRole;
-
-SixGaming = {};
+    tmi, discord, twitch, sixDiscord, sixBotGGChannel, liveStreamAnnouncementsChannel, streamersRole, streamNotifyRole;
 
 SixGaming.start = function(_tmi, _discord, _twitch) {
     tmi = _tmi;
@@ -157,9 +155,9 @@ SixGaming.start = function(_tmi, _discord, _twitch) {
                                 wentLive.forEach(function(stream) {
                                     if (stream.toLowerCase() === "sixgaminggg") {
                                         if (liveChannels[stream].game) {
-                                            SixGaming.discordQueue("@everyone - Six Gaming just went live on Twitch with \"" + liveChannels[stream].game + "\": \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
+                                            SixGaming.discordQueue(streamNotifyRole + " - Six Gaming just went live on Twitch with \"" + liveChannels[stream].game + "\": \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
                                         } else {
-                                            SixGaming.discordQueue("@everyone - Six Gaming just went live on Twitch: \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
+                                            SixGaming.discordQueue(streamNotifyRole + " - Six Gaming just went live on Twitch: \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
                                         }
                                         currentHost = "";
                                         manualHosting = false;
@@ -168,9 +166,9 @@ SixGaming.start = function(_tmi, _discord, _twitch) {
                                         discord.user.setStatus("online", liveChannels[stream].channel.status, "http://twitch.tv/SixGamingGG");
                                     } else if (streamers.indexOf(stream.toLowerCase()) !== -1) {
                                         if (liveChannels[stream].game) {
-                                            SixGaming.discordQueue("@everyone - Six Gamer " + stream + " just went live on Twitch with \"" + liveChannels[stream].game + "\": \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
+                                            SixGaming.discordQueue(streamNotifyRole + " - Six Gamer " + stream + " just went live on Twitch with \"" + liveChannels[stream].game + "\": \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
                                         } else {
-                                            SixGaming.discordQueue("@everyone - Six Gamer " + stream + " just went live on Twitch: \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
+                                            SixGaming.discordQueue(streamNotifyRole + " - Six Gamer " + stream + " just went live on Twitch: \"" + liveChannels[stream].channel.status + "\"  Watch at http://twitch.tv/" + stream, liveStreamAnnouncementsChannel);
                                         }
                                     } else if (hosts.indexOf(stream.toLowerCase()) !== -1) {
                                         if (liveChannels[stream].game) {
@@ -337,8 +335,8 @@ SixGaming.start = function(_tmi, _discord, _twitch) {
                 return;
             }
 
-            streamers = data[0].map(function(streamer) {return streamer.streamer;});
-            hosts = data[1].map(function(streamer) {return streamer.streamer;});
+            streamers = data.recordsets[0].map(function(streamer) {return streamer.streamer;});
+            hosts = data.recordsets[1].map(function(streamer) {return streamer.streamer;});
 
             tmi.on("disconnected", function(message) {
                 console.log("DISCONNECTED", message);
@@ -387,6 +385,7 @@ SixGaming.start = function(_tmi, _discord, _twitch) {
                 sixBotGGChannel = sixDiscord.channels.find("name", "sixbotgg");
                 liveStreamAnnouncementsChannel = sixDiscord.channels.find("name", "live-stream-announcements");
                 streamersRole = sixDiscord.roles.find("name", "Streamers");
+                streamNotifyRole = sixDiscord.roles.find("name", "Stream Notify");
 
                 if (!readied) {
                     readied = true;
@@ -458,7 +457,7 @@ SixGaming.discordQueue = function(message, channel) {
     if (!channel) {
         channel = sixBotGGChannel;
     }
-    channel.sendMessage(message);
+    channel.send(message);
 };
 
 SixGaming.sortDiscordChannels = function() {
@@ -470,7 +469,7 @@ SixGaming.sortDiscordChannels = function() {
         index = 0,
 
         positionChannel = function() {
-            var channel = sixDiscord.channels.find("id", channels[index].id);
+            var channel = sixDiscord.channels.get(channels[index].id);
             channel.setPosition(100 + index).then(function() {
                 index++;
                 if (index < channels.length) {
@@ -699,23 +698,23 @@ SixGaming.tmiMessages = {
                     code: {type: db.INT, value: code}
                 },
                 function(err, data) {
-                    var id, user, matches;
+                    var id;
 
                     if (err) {
                         SixGaming.tmiQueue("Sorry, " + from + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
                         return;
                     }
 
-                    if (data[0].length === 0) {
+                    if (data.recordsets[0].length === 0) {
                         return;
                     }
 
-                    id = data[0][0].discord;
+                    id = data.recordsets[0][0].discord;
 
                     db.query(
                         "update streamer set code = 0, validated = 1 where streamer = @streamer;delete from host where streamer = @streamer",
                         {streamer: {type: db.VARCHAR(50), value: from}},
-                        function(err, data) {
+                        function(err) {
                             var users, user, hostIndex;
 
                             if (err) {
@@ -729,25 +728,13 @@ SixGaming.tmiMessages = {
                             }
                             sixDiscord.member(user).addRole(streamersRole);
 
-                            sixDiscord.createChannel("twitch-" + from, "text").then(function(channel) {
-                                channel.setTopic("This channel is for " + user + "'s Twitch stream.  Follow " + user + " on Twitch at http://twitch.tv/" + from + ".").then(function() {
-                                    channel.setPosition(9999).then(SixGaming.sortDiscordChannels).catch(function(err) {
-                                        console.log("Problem setting position.");
-                                        console.log(err);
-                                    });
-                                });
-
-                                SixGaming.tmiQueue("You're all set, " + from + ". You are now a Six Gaming streamer!");
-                                SixGaming.discordQueue(user + " is now setup as a Six Gaming streamer at http://twitch.tv/" + from + " and their Discord channel has been created at " + channel + ".");
-                                streamers.push(from.toLowerCase());
-                                hostIndex = hosts.indexOf(from);
-                                if (hostIndex !== -1) {
-                                    hosts.splice(hostIndex, 1);
-                                }
-                            }).catch(function(err) {
-                                console.log("Problem creating channel.");
-                                console.log(err);
-                            });
+                            SixGaming.tmiQueue("You're all set, " + from + ". You are now a Six Gaming streamer!");
+                            SixGaming.discordQueue(user + ", you are now setup as a Six Gaming streamer at http://twitch.tv/" + from + ".  If you would like a text channel on Discord for your Twitch community, you can use `!addmychannel`.");
+                            streamers.push(from.toLowerCase());
+                            hostIndex = hosts.indexOf(from);
+                            if (hostIndex !== -1) {
+                                hosts.splice(hostIndex, 1);
+                            }
                         }
                     );
                 }
@@ -844,9 +831,9 @@ SixGaming.discordMessages = {
                             return;
                         }
 
-                        if (data && data[0] && data[0][0]) {
-                            if (data[0][0].discord !== id) {
-                                let users = discord.users.findAll("id", data[0][0].discord),
+                        if (data && data.recordsets[0] && data.recordsets[0][0]) {
+                            if (data.recordsets[0][0].discord !== id) {
+                                let users = discord.users.findAll("id", data.recordsets[0][0].discord),
                                     registeredUser;
                                 
                                 if (users.length !== 0) {
@@ -857,12 +844,12 @@ SixGaming.discordMessages = {
                                 return;
                             }
 
-                            if (data[0][0].validated) {
+                            if (data.recordsets[0][0].validated) {
                                 SixGaming.discordQueue("Sorry, " + user + ", but you're already validated!");
                                 return;
                             }
 
-                            SixGaming.discordQueue(user + ", please log in to Twitch as " + message + ", visit http://twitch.tv/SixGamingGG, and enter the command `!confirm " + data[0][0].code + "` into chat.");
+                            SixGaming.discordQueue(user + ", please log in to Twitch as " + message + ", visit http://twitch.tv/SixGamingGG, and enter the command `!confirm " + data.recordsets[0][0].code + "` into chat.");
                             return;
                         }
 
@@ -902,13 +889,13 @@ SixGaming.discordMessages = {
                         return;
                     }
 
-                    if (!data || !data[0] || !data[0][0]) {
+                    if (!data || !data.recordsets[0] || !data.recordsets[0][0]) {
                         SixGaming.discordQueue(user + ", you are not currently registered as a streamer.");
                         return;
                     }
 
-                    id = data[0][0].id;
-                    streamer = data[0][0].streamer;
+                    id = data.recordsets[0][0].id;
+                    streamer = data.recordsets[0][0].streamer;
 
                     db.query(
                         "delete from streamer where id = @id",
@@ -935,6 +922,80 @@ SixGaming.discordMessages = {
                 }
             );
         }
+    }, 
+
+    addmychannel: function(from, user, message) {
+        if (!message) {
+            db.query(
+                "select streamer from streamer where discord = @discord",
+                {discord: {type: db.VARCHAR(50), value: user.id}},
+                function(err, data) {
+                    var streamer;
+
+                    if (err) {
+                        SixGaming.discordQueue("Sorry, " + user + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
+                        return;
+                    }
+
+                    if (!data || !data.recordsets[0] || !data.recordsets[0][0]) {
+                        SixGaming.discordQueue(user + ", you are not currently registered as a streamer.");
+                        return;
+                    }
+
+                    streamer = data.recordsets[0][0].streamer;
+
+                    sixDiscord.createChannel("twitch-" + streamer, "text").then(function(channel) {
+                        channel.setTopic("This channel is for " + user + "'s Twitch stream.  Follow " + user + " on Twitch at http://twitch.tv/" + streamer + ".").then(function() {
+                            channel.setPosition(9999).then(SixGaming.sortDiscordChannels).catch(function(err) {
+                                console.log("Problem setting position.");
+                                console.log(err);
+                            });
+                        });
+
+                        SixGaming.discordQueue(user + ", your text channel has now been created at " + channel + ".");
+                    }).catch(function(err) {
+                        SixGaming.discordQueue("Sorry, " + user + ", but there was a problem creating your channel.  Does it already exist?");
+                        console.log("Problem creating channel.");
+                        console.log(err);
+                    });
+                }
+            );
+        } else {
+            SixGaming.discordQueue("Sorry, " + user + ", but that is not a valid command.  Did you mean to `!addchannel <channel name>` to create a voice channel?");
+        }
+    },
+
+    removemychannel: function(from, user, message) {
+        if (!message) {
+            db.query(
+                "select streamer from streamer where discord = @discord",
+                {discord: {type: db.VARCHAR(50), value: user.id}},
+                function(err, data) {
+                    var streamer, channel;
+
+                    if (err) {
+                        SixGaming.discordQueue("Sorry, " + user + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
+                        return;
+                    }
+
+                    if (!data || !data.recordsets[0] || !data.recordsets[0][0]) {
+                        SixGaming.discordQueue(user + ", you are not currently registered as a streamer.");
+                        return;
+                    }
+
+                    streamer = data.recordsets[0][0].streamer;
+
+                    channel = sixDiscord.channels.find("name", "twitch-" + streamer);
+
+                    if (channel) {
+                        channel.delete();
+                        SixGaming.discordQueue(user + ", your text channel has been removed.  You can always recreate it using `!addmychannel`.");
+                    } else {
+                        SixGaming.discordQueue("Sorry, " + user + ", but there was a problem removing your text channel.  Are you sure you have one?");
+                    }
+                }
+            );
+        }
     },
 
     addstreamer: function(from, user, message) {
@@ -954,7 +1015,7 @@ SixGaming.discordMessages = {
                             return;
                         }
 
-                        if (data && data[0] && data[0][0]) {
+                        if (data && data.recordsets[0] && data.recordsets[0][0]) {
                             SixGaming.discordQueue("Sorry, " + user + ", but " + message + " is already added as a streamer to be hosted.");
                             return;
                         }
@@ -993,12 +1054,12 @@ SixGaming.discordMessages = {
                         return;
                     }
 
-                    if (!data || !data[0] || !data[0][0]) {
+                    if (!data || !data.recordsets[0] || !data.recordsets[0][0]) {
                         SixGaming.discordQueue(user + ", " + message + " is not currently a hosted streamer.");
                         return;
                     }
 
-                    id = data[0][0].id;
+                    id = data.recordsets[0][0].id;
 
                     db.query(
                         "delete from host where id = @id",
@@ -1048,6 +1109,8 @@ SixGaming.discordMessages = {
                 console.log(err);
                 SixGaming.discordQueue("Sorry, " + user + ", but there was a problem with adding this Discord channel.");
             });
+        } else {
+            SixGaming.discordQueue("Sorry, " + user + ", but that is not a valid command.  Did you mean to `!addmychannel` to create your own text channel for your Twitch community?");
         }
     },
 
@@ -1080,6 +1143,8 @@ SixGaming.discordMessages = {
                     },
                     function() {}
                 );
+
+                SixGaming.discordQueue(user + ", " + role + " has been setup as a mentionable role with you as the first member!  You may also discuss the game in #games.  Anyone may join this role to be notified by entering `!notify " + short + "`.");
             }).catch(function(err) {
                 console.log(err);
                 SixGaming.discordQueue("Sorry, " + user + ", but there was a problem with adding this role to Discord.");
@@ -1151,18 +1216,40 @@ SixGaming.discordMessages = {
         }
     },
 
+    streamnotify: function(from, user, message) {
+        if (!message) {
+            sixDiscord.member(user).addRole(streamNotifyRole).then(function() {
+                SixGaming.discordQueue(user + ", you have been setup to be notified when Six Gaming or one of its members is live on Twitch!");
+            }).catch(function(err) {
+                console.log(err);
+                SixGaming.discordQueue("Sorry, " + user + ", but there was a problem with setting you up for being notified when Six Gaming or one of its members is live on Twitch.  Are you sure you're not already setup to be notified?");
+            });
+        }
+    },
+
+    streamunnotify: function(from, user, message) {
+        if (!message) {
+            sixDiscord.member(user).removeRole(streamNotifyRole).then(function() {
+                SixGaming.discordQueue(user + ", you have been setup to be no longer be notified when Six Gaming or one of its members is live on Twitch.");
+            }).catch(function(err) {
+                console.log(err);
+                SixGaming.discordQueue("Sorry, " + user + ", but there was a problem with setting you up to not be notified when Six Gaming or one of its members is live on Twitch.  Are you sure you were setup to be notified?");
+            });
+        }
+    },
+
     games: function(from, user, message) {
         if (!message) {
             db.query(
                 "select game, code from game order by code", {}, function(err, data) {
                     var response = "You may use `!notify <game>` for the following games:";
 
-                    if (err || !data || !data[0]) {
+                    if (err || !data || !data.recordsets[0]) {
                         SixGaming.tmiQueue("Sorry, " + from + ", but the server is currently down.  Try later, or get a hold of roncli for fixing.");
                         return;
                     }
 
-                    data[0].forEach(function(row) {
+                    data.recordsets[0].forEach(function(row) {
                         response += "\n`" + row.code + "` - " + row.game;
                     });
 

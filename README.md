@@ -89,6 +89,13 @@ The following should be the contents of settings.js:
 Version History
 ===============
 
+1.3 - 5/22/2017
+---------------
+* Bot no longer pings @everyone when a streamer goes live.  Instead, you must `!streamnotify` to be alerted to when a streamer goes live, and `!streamunnotify` to turn it off.
+* Bot no longer creates #game-* channels for every game that is created.
+* Bot no longer creates #twitch-* text channels for every Twitch streamer who registers.  Instead, you must `!createchannel` to create your text channel, and `!removechannel` to remove it.
+* It sucks less. 👌
+
 1.2.1 - 3/25/2017
 -----------------
 * Added Sombra and Orisa to `!randomonium`.
