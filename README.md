@@ -1,7 +1,7 @@
 SixBotGG
 ========
 
-This is the source repository for the [Six Gaming Twitch Channel](http://twitch.tv/sixgaminggg) chat bot known as [SixBotGG](http://twitch.tv/sixbotgg).  This bot is written in [node.js](http://nodejs.org).
+This is the source repository for the [Six Gaming Twitch Channel](http://twitch.tv/sixgaminggg) and [Six Gaming Discord Server](http://ronc.li/six-discord) chat bot known as [SixBotGG](http://twitch.tv/sixbotgg).  This bot is written in [node.js](http://nodejs.org).
 
 Installation
 ============
@@ -86,6 +86,25 @@ The following should be the contents of settings.js:
             }
         };
 
+Coming Soon
+===========
+1.3.1
+-----
+* Code refactored for readability.
+* * Main module now only handles initial connect and startup calls.
+* * Separate modules for database, Discord API, Twitch API, and Tmi connectivity.
+* * Preparing for advanced logging by breaking out logging into its own module and adding an exception module to throw errors along with where they occurred.
+* * Randomonium is now in its own module.
+* * * Added Doomfist and Moira to randomonium.
+* * Commands are now in their own module, and are used by instanciating the Commands class with whether the commands will be coming from Discord or Tmi.  Security on these commands are now done per command, which allows for commands to be shared between different services.
+* Big update.  Zero new features. 💯
+
+1.4
+---
+* Implement advanced logging which outputs bot activity to #bot-activity, and error activity to #bot-errors.
+* Implement channel categories, with one each for bot channels, general channels, streamer channels, and voice channels.
+* Enhance bot output using Discord Rich Embeds, with text-only fallbacks.
+
 Version History
 ===============
 
@@ -93,7 +112,7 @@ Version History
 ---------------
 * Bot no longer pings @everyone when a streamer goes live.  Instead, you must `!streamnotify` to be alerted to when a streamer goes live, and `!streamunnotify` to turn it off.
 * Bot no longer creates #game-* channels for every game that is created.
-* Bot no longer creates #twitch-* text channels for every Twitch streamer who registers.  Instead, you must `!createchannel` to create your text channel, and `!removechannel` to remove it.
+* Bot no longer creates #twitch-* text channels for every Twitch streamer who registers.  Instead, you must `!addmychannel` to create your text channel, and `!removemychannel` to remove it.
 * It sucks less. 👌
 
 1.2.1 - 3/25/2017

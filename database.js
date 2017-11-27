@@ -1,66 +1,91 @@
-var settings = require("./settings"),
-    sql = require("mssql");
+const sql = require("mssql"),
 
-module.exports.query = function(sqlStr, params, callback) {
-    "use strict";
+    settings = require("./settings");
 
-    var conn = new sql.ConnectionPool(settings.database, function(err) {
-        var ps;
-
-        if (err) {
-            callback(err);
-            return;
-        }
-
-        ps = new sql.PreparedStatement(conn);
-        Object.keys(params).forEach(function(key) {
-            ps.input(key, params[key].type);
-        });
-        ps.multiple = true;
-        ps.prepare(sqlStr, function(err) {
-            var paramList = {},
-                paramMap;
-
-            if (err) {
-                callback(err);
-                return;
+//  ####           #            #
+//   #  #          #            #
+//   #  #   ###   ####    ###   # ##    ###    ###    ###
+//   #  #      #   #         #  ##  #      #  #      #   #
+//   #  #   ####   #      ####  #   #   ####   ###   #####
+//   #  #  #   #   #  #  #   #  ##  #  #   #      #  #
+//  ####    ####    ##    ####  # ##    ####  ####    ###
+/**
+* Defines the database class.
+*/
+class Database {
+    //  ###  #  #   ##   ###   #  #
+    // #  #  #  #  # ##  #  #  #  #
+    // #  #  #  #  ##    #      # #
+    //  ###   ###   ##   #       #
+    //    #                     #
+    /**
+     * Executes a query.
+     * @param {string} sqlStr The SQL query.
+     * @param {object} params The parameters of the query.
+     * @return {Promise} A promise that resolves when the query is complete.
+     */
+    static query(sqlStr, params) {
+        return new Promise((resolve, reject) => {
+            if (!params) {
+                params = {};
             }
 
-            paramMap = Object.keys(params).map(function(key) {
-                return [key, params[key].value];
-            });
+            const conn = new sql.ConnectionPool(settings.database, (errPool) => {
 
-            for (let i = 0, length = Object.keys(paramMap).length; i < length; i++) {
-                paramList[paramMap[i][0]] = paramMap[i][1];
-            }
+                if (errPool) {
+                    reject(errPool);
+                    return;
+                }
 
-            ps.execute(
-                paramList, function(err, data) {
-                    if (err) {
-                        callback(err);
+                const ps = new sql.PreparedStatement(conn);
+
+                Object.keys(params).forEach((key) => {
+                    ps.input(key, params[key].type);
+                });
+                ps.multiple = true;
+                ps.prepare(sqlStr, (errPrepare) => {
+                    const paramList = {};
+
+                    if (errPrepare) {
+                        reject(errPrepare);
                         return;
                     }
 
-                    ps.unprepare(function(err) {
-                        if (err) {
-                            callback(err);
-                            return;
+                    const paramMap = Object.keys(params).map((key) => [key, params[key].value]);
+
+                    for (let i = 0, {length} = Object.keys(paramMap); i < length; i++) {
+                        paramList[paramMap[i][0]] = paramMap[i][1];
+                    }
+
+                    ps.execute(
+                        paramList, (errExecute, data) => {
+                            if (errExecute) {
+                                reject(errExecute);
+                                return;
+                            }
+
+                            ps.unprepare((errUnprepare) => {
+                                if (errUnprepare) {
+                                    reject(errUnprepare);
+                                    return;
+                                }
+                                resolve(data);
+                            });
                         }
-                        callback(null, data);
-                    });
-                }
-            );
+                    );
+                });
+            });
         });
-    });
-};
+    }
+}
 
-module.exports.TYPES = sql.TYPES;
+({TYPES: Database.TYPES} = sql);
 
-Object.keys(sql.TYPES).forEach(function(key) {
-    "use strict";
+Object.keys(sql.TYPES).forEach((key) => {
+    const {TYPES: {[key]: value}} = sql;
 
-    var value = sql.TYPES[key];
-
-    module.exports[key] = value;
-    module.exports[key.toUpperCase()] = value;
+    Database[key] = value;
+    Database[key.toUpperCase()] = value;
 });
+
+module.exports = Database;
