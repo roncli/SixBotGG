@@ -1,9 +1,9 @@
 class Log {
-    log(obj) {
+    static log(obj) {
         console.log(obj);
     }
 
-    exception(message, err) {
+    static exception(message, err) {
         console.log(message);
         console.log(err);
     }

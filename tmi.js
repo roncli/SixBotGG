@@ -133,7 +133,7 @@ class Tmi {
                     }
                 }).catch((err) => {
                     if (err.innerError) {
-                        Log.log(err.message, err);
+                        Log.exception(err.message, err);
                     } else {
                         Log.log(err);
                     }
@@ -214,7 +214,7 @@ class Tmi {
      */
     static commandRotation() {
         if (commandRotationWait <= 0) {
-            Tmi.tmiMessage("SixBotGG", `!${autoCommandRotation[0]}`);
+            Tmi.message("SixBotGG", `!${autoCommandRotation[0]}`);
         } else {
             commandRotationTimeout = setTimeout(() => Tmi.commandRotation(), 600000);
         }

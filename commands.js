@@ -1,14 +1,14 @@
-const Db = require("./db"),
-    Discord = require("./discord"),
+const Db = require("./database"),
     Exception = require("./exception"),
     pjson = require("./package.json"),
     randomonium = require("./randomonium"),
-    Tmi = require("./tmi"),
     Twitch = require("./twitch"),
 
     addGameParse = /^([a-zA-Z0-9]{2,50}) +(.{2,255})$/,
     codeParse = /^[1-9][0-9]{2}$/,
     userCreatedChannels = {};
+
+let Discord, Tmi;
 
 //   ###                                          #
 //  #   #                                         #
@@ -33,6 +33,9 @@ class Commands {
      */
     constructor(service) {
         this.service = service;
+
+        Discord = require("./discord");
+        Tmi = require("./tmi");
     }
 
     //          #         #          ###                      #
@@ -43,19 +46,24 @@ class Commands {
     //  # #   ###  #  #  ###   #  #  #     #      ##   #  #  ###   ###     ##
     /**
      * A promise that only proceeds if the user is an admin.
+     * @param {Commands} commands The commands object.
      * @param {string|User} user The user to check.
      * @param {function} fx The function to run with the promise.
      * @returns {Promise} A promise that resolves if the user is an admin.
      */
-    static adminPromise(user, fx) {
+    static adminPromise(commands, user, fx) {
         return new Promise((resolve, reject) => {
-            if (!(this.service.constructor.name === "Discord" && Discord.isPodcaster(user) || this.service.constructor.name === "Tmi" && Tmi.isMod(user))) {
+            if (!(commands.service.name === "Discord" && Discord.isPodcaster(user) || commands.service.name === "Tmi" && Tmi.isMod(user))) {
                 reject(new Error("Admin permission required to perform this command."));
                 return;
             }
 
-            resolve();
-        }).then(new Promise(fx));
+            if (fx) {
+                new Promise(fx).then(resolve).catch(reject);
+            } else {
+                resolve();
+            }
+        });
     }
 
     //    #   #                                #  ###                      #
@@ -66,18 +74,23 @@ class Commands {
     //  ###  ###   ###     ##    ##   #      ###  #     #      ##   #  #  ###   ###     ##
     /**
      * A promise that only proceeds if the user is on Discord.
+     * @param {Commands} commands The commands object.
      * @param {function} fx The function to run with the promise.
      * @returns {Promise} A promise that resolves if the user is on Discord.
      */
-    static discordPromise(fx) {
+    static discordPromise(commands, fx) {
         return new Promise((resolve, reject) => {
-            if (this.service.constructor.name !== "Discord") {
+            if (commands.service.name !== "Discord") {
                 reject(new Error("This command is for Discord only."));
                 return;
             }
 
-            resolve();
-        }).then(new Promise(fx));
+            if (fx) {
+                new Promise(fx).then(resolve).catch(reject);
+            } else {
+                resolve();
+            }
+        });
     }
 
     //                               ###                      #
@@ -99,8 +112,12 @@ class Commands {
                 return;
             }
 
-            resolve();
-        }).then(new Promise(fx));
+            if (fx) {
+                new Promise(fx).then(resolve).catch(reject);
+            } else {
+                resolve();
+            }
+        });
     }
 
     //  #           #    ###                      #
@@ -111,18 +128,23 @@ class Commands {
     //   ##  #  #  ###   #     #      ##   #  #  ###   ###     ##
     /**
      * A promise that only proceeds if the user is on tmi.
+     * @param {Commands} commands The commands object.
      * @param {function} fx The function to run with the promise
      * @returns {Promise} A promise that resolves if the user is on tmi.
      */
-    static tmiPromise(fx) {
+    static tmiPromise(commands, fx) {
         return new Promise((resolve, reject) => {
-            if (this.service.constructor.name !== "Tmi") {
+            if (commands.service.name !== "Tmi") {
                 reject(new Error("This command is for Twitch chat only."));
                 return;
             }
 
-            resolve();
-        }).then(new Promise(fx));
+            if (fx) {
+                new Promise(fx).then(resolve).catch(reject);
+            } else {
+                resolve();
+            }
+        });
     }
 
     //   #                     #                 #
@@ -140,7 +162,7 @@ class Commands {
     facebook(user, message) {
         const commands = this;
 
-        return Commands.tmiPromise((resolve) => {
+        return Commands.tmiPromise(commands, (resolve) => {
             if (message) {
                 resolve(false);
                 return;
@@ -167,7 +189,7 @@ class Commands {
     twitter(user, message) {
         const commands = this;
 
-        return Commands.tmiPromise((resolve) => {
+        return Commands.tmiPromise(commands, (resolve) => {
             if (message) {
                 resolve(false);
                 return;
@@ -195,7 +217,7 @@ class Commands {
     youtube(user, message) {
         const commands = this;
 
-        return Commands.tmiPromise((resolve) => {
+        return Commands.tmiPromise(commands, (resolve) => {
             if (message) {
                 resolve(false);
                 return;
@@ -222,7 +244,7 @@ class Commands {
     itunes(user, message) {
         const commands = this;
 
-        return Commands.tmiPromise((resolve) => {
+        return Commands.tmiPromise(commands, (resolve) => {
             if (message) {
                 resolve(false);
                 return;
@@ -249,7 +271,7 @@ class Commands {
     discord(user, message) {
         const commands = this;
 
-        return Commands.tmiPromise((resolve) => {
+        return Commands.tmiPromise(commands, (resolve) => {
             if (message) {
                 resolve(false);
                 return;
@@ -276,7 +298,7 @@ class Commands {
     website(user, message) {
         const commands = this;
 
-        return Commands.tmiPromise((resolve) => {
+        return Commands.tmiPromise(commands, (resolve) => {
             if (message) {
                 resolve(false);
                 return;
@@ -356,8 +378,8 @@ class Commands {
     host(user, message) {
         const commands = this;
 
-        return Commands.adminPromise(user, (resolve, reject) => {
-            if (message) {
+        return Commands.adminPromise(commands, user, (resolve, reject) => {
+            if (!message) {
                 resolve(false);
                 return;
             }
@@ -420,7 +442,7 @@ class Commands {
     unhost(user, message) {
         const commands = this;
 
-        return Commands.adminPromise(user, (resolve, reject) => {
+        return Commands.adminPromise(commands, user, (resolve, reject) => {
             if (message) {
                 resolve(false);
                 return;
@@ -455,7 +477,7 @@ class Commands {
     confirm(user, message) {
         const commands = this;
 
-        return Commands.tmiPromise((resolve, reject) => {
+        return Commands.tmiPromise(commands, (resolve, reject) => {
             if (!message || !codeParse.test(message)) {
                 resolve(false);
                 return;
@@ -525,7 +547,7 @@ class Commands {
     addtwitch(user, message) {
         const commands = this;
 
-        return Commands.discordPromise((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             if (!message) {
                 resolve(false);
                 return;
@@ -612,7 +634,7 @@ class Commands {
     removetwitch(user, message) {
         const commands = this;
 
-        return Commands.discordPromise((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             if (message) {
                 resolve(false);
                 return;
@@ -671,7 +693,7 @@ class Commands {
     addmychannel(user, message) {
         const commands = this;
 
-        return Commands.discordPromise((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             if (message) {
                 commands.service.queue(`Sorry, ${user}, but that is not a valid command.  Did you mean to \`!addchannel <channel name>\` to create a voice channel?`);
                 resolve(false);
@@ -731,7 +753,7 @@ class Commands {
     removemychannel(user, message) {
         const commands = this;
 
-        return Commands.discordPromise((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             if (message) {
                 resolve(false);
                 return;
@@ -781,7 +803,7 @@ class Commands {
     addstreamer(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then(() => Commands.adminPromise(user, (resolve, reject) => {
+        return Commands.discordPromise(commands).then(() => Commands.adminPromise(commands, user, (resolve, reject) => {
             Twitch.getChannelStream(message).then((results) => {
                 if (!results) {
                     commands.service.queue(`Sorry, ${user}, but ${message} is not a valid Twitch streamer.`);
@@ -836,7 +858,7 @@ class Commands {
     removestreamer(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then(() => Commands.adminPromise(user, (resolve, reject) => {
+        return Commands.discordPromise(commands).then(() => Commands.adminPromise(commands, user, (resolve, reject) => {
             if (!message) {
                 resolve(false);
                 return;
@@ -887,7 +909,7 @@ class Commands {
     addchannel(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             if (!message) {
                 commands.service.queue(`Sorry, ${user}, but that is not a valid command.  Did you mean to \`!addmychannel\` to create your own text channel for your Twitch community?`);
                 resolve(false);
@@ -940,7 +962,7 @@ class Commands {
     addgame(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then(() => Commands.adminPromise(user, (resolve, reject) => {
+        return Commands.discordPromise(commands).then(() => Commands.adminPromise(commands, user, (resolve, reject) => {
             const matches = addGameParse.exec(message);
 
             if (!matches) {
@@ -1002,7 +1024,7 @@ class Commands {
     removegame(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then(() => Commands.ownerPromise(user, (resolve, reject) => {
+        return Commands.discordPromise(commands).then(() => Commands.ownerPromise(user, (resolve, reject) => {
             if (!message) {
                 resolve(false);
                 return;
@@ -1013,12 +1035,8 @@ class Commands {
             const role = Discord.findRoleByName(message);
 
             if (role) {
-                commands.service.queue(`Sorry, ${user}, but the game ${message} does not exist.`);
-                reject(new Error("Game does not exist."));
-                return;
+                role.delete();
             }
-
-            role.delete();
 
             Db.query(
                 "delete from game where code = @code", {code: {type: Db.VARCHAR(50), value: message}}
@@ -1046,7 +1064,7 @@ class Commands {
     games(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             if (message) {
                 resolve(false);
                 return;
@@ -1090,7 +1108,7 @@ class Commands {
     notify(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             if (!message) {
                 resolve(false);
                 return;
@@ -1132,7 +1150,7 @@ class Commands {
     unnotify(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             if (!message) {
                 resolve(false);
                 return;
@@ -1174,7 +1192,7 @@ class Commands {
     streamnotify(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             if (message) {
                 resolve(false);
                 return;
@@ -1206,7 +1224,7 @@ class Commands {
     streamunnotify(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             if (message) {
                 resolve(false);
                 return;
@@ -1237,7 +1255,7 @@ class Commands {
     randomonium(user, message) {
         const commands = this;
 
-        return Commands.discordPromise().then((resolve, reject) => {
+        return Commands.discordPromise(commands, (resolve, reject) => {
             const voiceChannel = Discord.getUserVoiceChannel(user);
 
             if (!voiceChannel) {
@@ -1246,12 +1264,15 @@ class Commands {
                 return;
             }
 
-            const heroes = randomonium.getHeroes(voiceChannel.members.length, message === "dupe" || message === "dupes");
+            const heroes = randomonium.getHeroes(voiceChannel.members.size, message === "dupe" || message === "dupes");
 
-            voiceChannel.members.forEach((member, index) => {
+            let index = 0;
+
+            voiceChannel.members.forEach((member) => {
                 if (voiceChannel && member.voiceChannel && voiceChannel.id === member.voiceChannel.id) {
                     commands.service.queue(`${member}: ${heroes[index]}`);
                 }
+                index++;
             });
 
             resolve(true);

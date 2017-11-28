@@ -7,7 +7,7 @@ const DiscordJs = require("discord.js"),
     Twitch = require("./twitch"),
 
     channelDeletionTimeouts = {},
-    discord = new DiscordJs.client(settings.discord),
+    discord = new DiscordJs.Client(settings.discord),
     hostingTimestamps = [],
     hosts = [],
     liveChannels = {},
@@ -192,7 +192,7 @@ class Discord {
                     }
                 }).catch((err) => {
                     if (err.innerError) {
-                        Log.log(err.message, err);
+                        Log.exception(err.message, err);
                     } else {
                         Log.log(err);
                     }
@@ -749,6 +749,21 @@ class Discord {
         return sixGuild.member(user).removeRole(streamNotifyRole);
     }
 
+    //                          #          ###         ##
+    //                          #          #  #         #
+    //  ##   ###    ##    ###  ###    ##   #  #   ##    #     ##
+    // #     #  #  # ##  #  #   #    # ##  ###   #  #   #    # ##
+    // #     #     ##    # ##   #    ##    # #   #  #   #    ##
+    //  ##   #      ##    # #    ##   ##   #  #   ##   ###    ##
+    /**
+     * Creates a role.
+     * @param {object} data The role data.
+     * @returns {Promise} A promise that resolves when the role has been created.
+     */
+    static createRole(data) {
+        return sixGuild.createRole(data);
+    }
+
     //          #     #  #  #                     ###         ###         ##
     //          #     #  #  #                      #          #  #         #
     //  ###   ###   ###  #  #   ###    ##   ###    #     ##   #  #   ##    #     ##
@@ -809,21 +824,6 @@ class Discord {
      */
     static createVoiceChannel(name) {
         return sixGuild.createChannel(name, "voice");
-    }
-
-    //                          #          ###         ##
-    //                          #          #  #         #
-    //  ##   ###    ##    ###  ###    ##   #  #   ##    #     ##
-    // #     #  #  # ##  #  #   #    # ##  ###   #  #   #    # ##
-    // #     #     ##    # ##   #    ##    # #   #  #   #    ##
-    //  ##   #      ##    # #    ##   ##   #  #   ##   ###    ##
-    /**
-     * Creates a role.
-     * @param {Role} role The name of the role to create.
-     * @returns {Promise} A promise that resolves when the channel has been created.
-     */
-    static createRole(role) {
-        return discord.createRole(role);
     }
 
     //  #            ##    #           ##                #                #      #

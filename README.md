@@ -104,6 +104,7 @@ Coming Soon
 * Implement advanced logging which outputs bot activity to #bot-activity, and error activity to #bot-errors.
 * Implement channel categories, with one each for bot channels, general channels, streamer channels, and voice channels.
 * Enhance bot output using Discord Rich Embeds, with text-only fallbacks.
+* Eliminate `!addtwitch`, `!removetwitch`, and `!confirm` commands, and just automatically determine if the user is a Six Gaming streamer using statuses on Discord.
 
 Version History
 ===============
