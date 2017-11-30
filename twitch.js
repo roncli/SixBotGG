@@ -37,7 +37,7 @@ class Twitch {
 
         return new Promise((resolve, reject) => {
             twitch.getStreams({channel: channels, limit: 100, "stream_type": "live", offset}, (err, results) => {
-                if (err || !results) {
+                if (err || !results || typeof results === "string") {
                     reject(err, results);
                     return;
                 }

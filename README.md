@@ -88,8 +88,23 @@ The following should be the contents of settings.js:
 
 Coming Soon
 ===========
-1.3.1
+1.4
+---
+* Implement advanced logging which outputs bot activity to #bot-activity, and error activity to #bot-errors.
+* Implement channel categories, with one each for bot channels, general channels, streamer channels, and voice channels.
+* Enhance bot output using Discord Rich Embeds, with text-only fallbacks.
+* Eliminate `!addtwitch`, `!removetwitch`, and `!confirm` commands, and just automatically determine if the user is a Six Gaming streamer using statuses on Discord.
+* Damn, I'm pretty. 😍
+
+1.4.1
 -----
+* Upgrade to new Twitch library that uses the new Helix API.
+* Nothing to see here. 😴
+
+Version History
+===============
+1.3.1 - 11/27/2017
+------------------
 * Code refactored for readability.
 * * Main module now only handles initial connect and startup calls.
 * * Separate modules for database, Discord API, Twitch API, and Tmi connectivity.
@@ -99,15 +114,6 @@ Coming Soon
 * * Commands are now in their own module, and are used by instanciating the Commands class with whether the commands will be coming from Discord or Tmi.  Security on these commands are now done per command, which allows for commands to be shared between different services.
 * Big update.  Zero new features. 💯
 
-1.4
----
-* Implement advanced logging which outputs bot activity to #bot-activity, and error activity to #bot-errors.
-* Implement channel categories, with one each for bot channels, general channels, streamer channels, and voice channels.
-* Enhance bot output using Discord Rich Embeds, with text-only fallbacks.
-* Eliminate `!addtwitch`, `!removetwitch`, and `!confirm` commands, and just automatically determine if the user is a Six Gaming streamer using statuses on Discord.
-
-Version History
-===============
 
 1.3 - 5/22/2017
 ---------------

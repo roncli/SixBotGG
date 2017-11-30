@@ -49,9 +49,8 @@ class Tmi {
             tmi.raw("CAP REQ :twitch.tv/membership");
         });
 
-        tmi.on("disconnected", (message) => {
-            Log.log("Disconnected from tmi...");
-            Log.log(message);
+        tmi.on("disconnected", (ev) => {
+            Log.exception("Disconnected from tmi...", ev);
         });
 
         tmi.on("message", (channel, userstate, text, self) => {
@@ -133,9 +132,9 @@ class Tmi {
                     }
                 }).catch((err) => {
                     if (err.innerError) {
-                        Log.exception(err.message, err);
+                        Log.exception(err.message, err.innerError);
                     } else {
-                        Log.log(err);
+                        Log.warning(err);
                     }
                 });
             }

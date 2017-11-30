@@ -81,6 +81,24 @@ class Discord {
         manualHosting = value;
     }
 
+    //  #
+    //
+    // ##     ##    ##   ###
+    //  #    #     #  #  #  #
+    //  #    #     #  #  #  #
+    // ###    ##    ##   #  #
+    /**
+     * Six Gaming's icon.
+     * @returns {string} The URL of the icon.
+     */
+    static get icon() {
+        if (discord && discord.status === 0) {
+            return discord.user.avatarURL;
+        }
+
+        return void 0;
+    }
+
     //         #                 #
     //         #                 #
     //  ###   ###    ###  ###   ###   #  #  ###
@@ -120,8 +138,7 @@ class Discord {
         });
 
         discord.on("disconnect", (ev) => {
-            Log.log("Disconnected from Discord...");
-            Log.log(ev);
+            Log.exception("Disconnected from Discord.", ev);
         });
 
         discord.addListener("message", (message) => {
@@ -154,20 +171,29 @@ class Discord {
     //  ##    ##   #  #  #  #   ##    ##     ##
     /**
      * Connects to Discord.
-     * @returns {Promise} A promise that's resolved when connected to Discord.
+     * @returns {void}
      */
     static connect() {
-        return new Promise((resolve, reject) => {
-            Log.log("Connecting to Discord...");
-            discord.login(settings.discord.token).then(() => {
-                Log.log("Connected.");
-                resolve();
-            }).catch((err) => {
-                Log.log("Error connecting to Discord, will automatically retry.");
-                Log.log(err);
-                reject(err);
-            });
+        Log.log("Connecting to Discord...");
+        discord.login(settings.discord.token).then(() => {
+            Log.log("Connected.");
+        }).catch((err) => {
+            Log.exception("Error connecting to Discord, will automatically retry.", err);
         });
+    }
+
+    //  #            ##                                  #             #
+    //              #  #                                 #             #
+    // ##     ###   #      ##   ###   ###    ##    ##   ###    ##    ###
+    //  #    ##     #     #  #  #  #  #  #  # ##  #      #    # ##  #  #
+    //  #      ##   #  #  #  #  #  #  #  #  ##    #      #    ##    #  #
+    // ###   ###     ##    ##   #  #  #  #   ##    ##     ##   ##    ###
+    /**
+     * Determines whether the bot is connected to Discord.
+     * @returns {boolean} Whether the bot is connected to Discord.
+     */
+    static isConnected() {
+        return discord ? discord.status === 0 : false;
     }
 
     // # #    ##    ###    ###    ###   ###   ##
@@ -192,9 +218,9 @@ class Discord {
                     }
                 }).catch((err) => {
                     if (err.innerError) {
-                        Log.exception(err.message, err);
+                        Log.exception(err.message, err.innerError);
                     } else {
-                        Log.log(err);
+                        Log.warning(err);
                     }
                 });
             }
@@ -217,7 +243,38 @@ class Discord {
             channel = sixBotGGChannel;
         }
 
-        channel.send(message);
+        channel.send(
+            "",
+            {
+                embed: {
+                    description: message,
+                    timestamp: new Date(),
+                    color: 0x16F6F8,
+                    footer: {icon_url: Discord.icon} // eslint-disable-line camelcase
+                }
+            }
+        );
+    }
+
+    //        #          #      ##
+    //                   #     #  #
+    // ###   ##     ##   ###   #  #  #  #   ##   #  #   ##
+    // #  #   #    #     #  #  #  #  #  #  # ##  #  #  # ##
+    // #      #    #     #  #  ## #  #  #  ##    #  #  ##
+    // #     ###    ##   #  #   ##    ###   ##    ###   ##
+    //                            #
+    /**
+     * Queues a rich embed message to be sent.
+     * @param {object} message The message to be sent.
+     * @param {Channel} [channel] The channel to send the message to.
+     * @returns {Promise} A promise that resolves when the message is sent.
+     */
+    static richQueue(message, channel) {
+        if (!channel) {
+            channel = sixBotGGChannel;
+        }
+
+        channel.send("", message);
     }
 
     //  #           ###            #                      #
@@ -276,8 +333,7 @@ class Discord {
             try {
                 live = streams.map((stream) => stream.channel.name.toLowerCase());
             } catch (err) {
-                Log.log("Error checking streams.");
-                Log.log(err, streams);
+                Log.exception("Error checking streams.", err);
                 setTimeout(() => Discord.checkStreams(), 60000);
                 return;
             }
@@ -286,7 +342,6 @@ class Discord {
             if (live.length === 0) {
                 if (!wasEmptyLast) {
                     Log.log("Live list was empty.");
-                    Log.log(streams);
                     wasEmptyLast = true;
                     setTimeout(Discord.checkStreams, 60000);
                     return;
@@ -324,7 +379,7 @@ class Discord {
 
             // Discord notifications for new live channels.
             wentLive.forEach((stream) => {
-                Discord.announceStream(stream, liveChannels[stream].game, liveChannels[stream].channel.status);
+                Discord.announceStream(liveChannels[stream]);
             });
 
             // If manual hosting is active, check it.  Afterwards, update hosting.
@@ -343,12 +398,13 @@ class Discord {
                 }).catch((err) => {
                     // Skip the current round of checking the manual host, and just check again next time.
                     Discord.updateHosting(live);
-                    Log.log("Error checking current host.");
-                    Log.log(err);
+                    Log.exception(`Error checking current host ${currentHost}.`, err);
                 });
             } else {
                 Discord.updateHosting(live);
             }
+        }).catch((err, results) => {
+            Log.exception(`Error getting streams: ${results}`, err);
         });
     }
 
@@ -406,8 +462,7 @@ class Discord {
                 Tmi.queue(`Now hosting Six Gamer ${currentHost}.  Check out their stream at http://twitch.tv/${currentHost}!`);
                 Tmi.host("sixgaminggg", currentHost).catch((err) => {
                     if (err !== "bad_host_hosting") {
-                        Log.log("Problem hosting channel.");
-                        Log.log(err);
+                        Log.exception("Problem hosting channel.", err);
                     }
                 });
                 lastHost = new Date().getTime();
@@ -436,8 +491,7 @@ class Discord {
                 Tmi.queue(`Now hosting ${currentHost}.  Check out their stream at http://twitch.tv/${currentHost}!`);
                 Tmi.host("sixgaminggg", currentHost).catch((err) => {
                     if (err !== "bad_host_hosting") {
-                        Log.log("Problem hosting channel.");
-                        Log.log(err);
+                        Log.exception("Problem hosting channel.", err);
                     }
                 });
                 lastHost = new Date().getTime();
@@ -463,48 +517,63 @@ class Discord {
     //  # #  #  #  #  #   ##    ###  #  #   ##    ##    ##     ##  #      ##    # #  #  #
     /**
      * Announces a live stream.
-     * @param {string} stream The name of the stream.
-     * @param {string} game The game being played.
-     * @param {string} status The title of the stream.
+     * @param {object} stream The stream.
      * @returns {void}
      */
-    static announceStream(stream, game, status) {
-        if (stream.toLowerCase() === "sixgaminggg") {
-            if (game) {
-                Discord.queue(`${streamNotifyRole} - Six Gaming just went live on Twitch with "${game}": "${status}"  Watch at http://twitch.tv/${stream}`, liveStreamAnnouncementsChannel);
-            } else {
-                Discord.queue(`${streamNotifyRole} - Six Gaming just went live on Twitch: "${status}"  Watch at http://twitch.tv/${stream}`, liveStreamAnnouncementsChannel);
+    static announceStream(stream) {
+        const message = {
+            embed: {
+                timestamp: new Date(),
+                color: 0x16F6F8,
+                footer: {icon_url: Discord.icon}, // eslint-disable-line camelcase
+                thumbnail: {
+                    url: stream.channel.logo,
+                    width: 300,
+                    height: 300
+                },
+                image: {
+                    url: stream.channel.profile_banner,
+                    width: 1920,
+                    height: 480
+                },
+                url: stream.channel.url,
+                fields: []
             }
+        };
+
+        message.embed.fields.push({
+            name: "Stream Title",
+            value: stream.channel.status
+        });
+
+        if (stream.game) {
+            message.embed.fields.push({
+                name: "Now Playing",
+                value: stream.game
+            });
+        }
+
+        if (stream.toLowerCase() === "sixgaminggg") {
+            message.embed.description = `${streamNotifyRole} - Six Gaming just went live on Twitch!  Watch at ${stream.channel.url}`;
             currentHost = "";
             manualHosting = false;
             Tmi.unhost("sixgaminggg");
             Tmi.queue("What's going on everyone?  Six Gaming is live!");
             discord.user.setStatus("online", status, "http://twitch.tv/SixGamingGG");
         } else if (streamers.indexOf(stream.toLowerCase()) !== -1) {
-            if (game) {
-                Discord.queue(`${streamNotifyRole} - Six Gamer ${stream} just went live on Twitch with "${game}": "${status}"  Watch at http://twitch.tv/${stream}`, liveStreamAnnouncementsChannel);
-            } else {
-                Discord.queue(`${streamNotifyRole} - Six Gamer ${stream} just went live on Twitch: "${status}"  Watch at http://twitch.tv/${stream}`, liveStreamAnnouncementsChannel);
-            }
+            message.embed.description = `${streamNotifyRole} - Six Gamer ${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
         } else if (hosts.indexOf(stream.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition
-            if (game) {
-                Discord.queue(`${stream} just went live on Twitch with "${game}": "${status}"  Watch at http://twitch.tv/${stream}`, liveStreamAnnouncementsChannel);
-            } else {
-                Discord.queue(`${stream} just went live on Twitch: "${status}"  Watch at http://twitch.tv/${stream}`, liveStreamAnnouncementsChannel);
-            }
+            message.embed.description = `${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
         } else {
-            if (game) {
-                Discord.queue(`${stream} has been hosted by Six Gaming on Twitch, with "${game}": "${status}"  Watch at http://twitch.tv/${stream}`, liveStreamAnnouncementsChannel);
-            } else {
-                Discord.queue(`${stream} has been hosted by Six Gaming on Twitch: "${status}"  Watch at http://twitch.tv/${stream}`, liveStreamAnnouncementsChannel);
-            }
-
+            message.embed.description = `${stream.channel.display_name} has been hosted by Six Gaming on Twitch!  Watch at ${stream.channel.url}`;
             lastHost = 0;
             hostingTimestamps.push(new Date().getTime());
             while (hostingTimestamps.length > 3) {
                 hostingTimestamps.splice(0, 1);
             }
         }
+
+        discord.richQueue(message, liveStreamAnnouncementsChannel);
     }
 
     //                   #     ####               #          #  #         #                 ##   #                             ##
@@ -547,8 +616,7 @@ class Discord {
                         positionChannel(index);
                     }
                 }).catch((err) => {
-                    Log.log("Problem repositioning channels.");
-                    Log.log(err);
+                    Log.exception("Problem repositioning channels.", err);
                 });
             };
 

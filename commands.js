@@ -34,8 +34,13 @@ class Commands {
     constructor(service) {
         this.service = service;
 
-        Discord = require("./discord");
-        Tmi = require("./tmi");
+        if (!Discord) {
+            Discord = require("./discord");
+        }
+
+        if (!Tmi) {
+            Tmi = require("./tmi");
+        }
     }
 
     //          #         #          ###                      #
@@ -403,7 +408,7 @@ class Commands {
                     Discord.currentHost = message;
                     Tmi.host("sixgaminggg", Discord.currentHost).then(() => {
                         Tmi.queue(`Now hosting ${Discord.currentHost}.  Check out their stream at http://twitch.tv/${Discord.currentHost}!`);
-                        Discord.announceStream(Discord.currentHost, results.stream.game, results.stream.channel.status);
+                        Discord.announceStream(results.stream);
                         resolve(true);
                     }).catch((err) => {
                         commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
