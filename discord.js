@@ -1,6 +1,7 @@
 const DiscordJs = require("discord.js"),
 
     Commands = require("./commands"),
+    Db = require("./database"),
     Log = require("./log"),
     settings = require("./settings"),
     Tmi = require("./tmi"),
@@ -12,7 +13,8 @@ const DiscordJs = require("discord.js"),
     hosts = [],
     liveChannels = {},
     messageParse = /^!([^ ]+)(?: +(.+[^ ]))? *$/,
-    streamers = [];
+    streamers = [],
+    urlParse = /^https:\/\/www.twitch.tv\/(.+)$/;
 
 let currentHost = "",
     lastHost = 0,
@@ -22,7 +24,9 @@ let currentHost = "",
     sixBotGGChannel,
     sixGuild,
     streamNotifyRole,
+    streamersCategory,
     streamersRole,
+    voiceCategory,
     wasEmptyLast = false;
 
 //  ####     #                                    #
@@ -36,6 +40,10 @@ let currentHost = "",
  * A static class that handles all Discord.js interctions.
  */
 class Discord {
+    static get discord() {
+        return discord;
+    }
+
     //                                      #    #  #                #
     //                                      #    #  #                #
     //  ##   #  #  ###   ###    ##   ###   ###   ####   ##    ###   ###
@@ -119,6 +127,8 @@ class Discord {
             sixGuild = discord.guilds.find("name", "Six Gaming");
 
             liveStreamAnnouncementsChannel = sixGuild.channels.find("name", "live-stream-announcements");
+            streamersCategory = sixGuild.channels.find("name", "Streamers");
+            voiceCategory = sixGuild.channels.find("name", "Voice");
             sixBotGGChannel = sixGuild.channels.find("name", "sixbotgg");
 
             streamersRole = sixGuild.roles.find("name", "Streamers");
@@ -158,6 +168,41 @@ class Discord {
                 if (channelDeletionTimeouts[newMember.voiceChannel.id]) {
                     clearTimeout(channelDeletionTimeouts[newMember.voiceChannel.id]);
                     delete channelDeletionTimeouts[newMember.voiceChannel.id];
+                }
+            }
+        });
+
+        discord.addListener("presenceUpdate", (oldMember, newMember) => {
+            if (newMember.presence && newMember.presence.game && newMember.presence.game.streaming && newMember.presence.game.url && newMember.presence.game.url.contains("twitch.tv")) {
+                const matches = urlParse.exec(newMember.presence.game.url);
+
+                if (matches) {
+                    const user = matches[1];
+
+                    Db.query(
+                        "select count(id) streamers from streamer where discord = @id",
+                        {id: {type: Db.INT, value: newMember.id}}
+                    ).then((data) => {
+                        if (data.recordsets[0][0].streamers === 0) {
+                            Db.query(
+                                "insert into streamer (streamer, discord, code, validated) values (@streamer, @discord, 0, 1)",
+                                {
+                                    streamer: {type: Db.VARCHAR(50), value: user},
+                                    discord: {type: Db.VARCHAR(50), value: newMember.id}
+                                }
+                            ).then(() => {
+                                Discord.addStreamersRole(newMember);
+
+                                Discord.queue(`${newMember}, you are now setup as a Six Gaming streamer at http://twitch.tv/${user}.  If you would like a text channel on Discord for your Twitch community, you can use \`!addmychannel\`.`);
+                                Discord.addStreamer(user.toLowerCase());
+                                Discord.removeHost(user.toLowerCase());
+                            }).catch((err) => {
+                                Log.exception("There was a database error inserting into the streamer table.", err);
+                            });
+                        }
+                    }).catch((err) => {
+                        Log.exception(`Error while checking if ${newMember} is a streamer.`, err);
+                    });
                 }
             }
         });
@@ -559,7 +604,7 @@ class Discord {
             manualHosting = false;
             Tmi.unhost("sixgaminggg");
             Tmi.queue("What's going on everyone?  Six Gaming is live!");
-            discord.user.setStatus("online", status, "http://twitch.tv/SixGamingGG");
+            discord.user.setStatus("online", stream.channel.status, "http://twitch.tv/SixGamingGG");
         } else if (streamers.indexOf(stream.toLowerCase()) !== -1) {
             message.embed.description = `${streamNotifyRole} - Six Gamer ${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
         } else if (hosts.indexOf(stream.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition
@@ -610,7 +655,7 @@ class Discord {
             positionChannel = (index) => {
                 const channel = sixGuild.channels.get(channels[index].id);
 
-                channel.setPosition(100 + index).then(() => {
+                channel.edit({position: index}).then(() => {
                     index++;
                     if (index < channels.length) {
                         positionChannel(index);
@@ -876,7 +921,9 @@ class Discord {
      * @returns {Promise} A promise that resolves when the channel has been created.
      */
     static createTextChannel(name) {
-        return sixGuild.createChannel(name, "text");
+        return sixGuild.createChannel(name, "text").then((channel) => {
+            channel.edit({parent_id: streamersCategory.id}); // eslint-disable-line camelcase
+        });
     }
 
     //                          #          #  #         #                 ##   #                             ##
@@ -891,7 +938,9 @@ class Discord {
      * @returns {Promise} A promise that resolves when the channel has been created.
      */
     static createVoiceChannel(name) {
-        return sixGuild.createChannel(name, "voice");
+        return sixGuild.createChannel(name, "voice").then((channel) => {
+            channel.edit({parent_id: voiceCategory.id}); // eslint-disable-line camelcase
+        });
     }
 
     //  #            ##    #           ##                #                #      #
