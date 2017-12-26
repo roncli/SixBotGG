@@ -234,14 +234,13 @@ class Tmi {
         const index = autoCommandRotation.indexOf(command);
 
         if (index !== -1) {
-            clearTimeout(commandRotationTimeout);
-
             commandRotationWait = 5;
             autoCommandRotation.splice(index, 1);
             autoCommandRotation.push(command);
-
-            commandRotationTimeout = setTimeout(() => Tmi.commandRotation(), 600000);
         }
+
+        clearTimeout(commandRotationTimeout);
+        commandRotationTimeout = setTimeout(() => Tmi.commandRotation(), 600000);
     }
 }
 

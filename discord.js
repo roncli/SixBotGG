@@ -43,7 +43,6 @@ class Discord {
     static get discord() {
         return discord;
     }
-
     //                                      #    #  #                #
     //                                      #    #  #                #
     //  ##   #  #  ###   ###    ##   ###   ###   ####   ##    ###   ###
@@ -127,8 +126,11 @@ class Discord {
             sixGuild = discord.guilds.find("name", "Six Gaming");
 
             liveStreamAnnouncementsChannel = sixGuild.channels.find("name", "live-stream-announcements");
-            streamersCategory = sixGuild.channels.find("name", "Streamers");
-            voiceCategory = sixGuild.channels.find("name", "Voice");
+            // TODO: Fix with discord.js v11.3
+            // streamersCategory = sixGuild.channels.find("name", "Streamers");
+            // voiceCategory = sixGuild.channels.find("name", "Voice");
+            streamersCategory = {id: "385651317885894658"};
+            voiceCategory = {id: "385652112354312192"};
             sixBotGGChannel = sixGuild.channels.find("name", "sixbotgg");
 
             streamersRole = sixGuild.roles.find("name", "Streamers");
@@ -173,7 +175,7 @@ class Discord {
         });
 
         discord.addListener("presenceUpdate", (oldMember, newMember) => {
-            if (newMember.presence && newMember.presence.game && newMember.presence.game.streaming && newMember.presence.game.url && newMember.presence.game.url.contains("twitch.tv")) {
+            if (newMember.presence && newMember.presence.game && newMember.presence.game.streaming && newMember.presence.game.url && newMember.presence.game.url.includes("twitch.tv")) {
                 const matches = urlParse.exec(newMember.presence.game.url);
 
                 if (matches) {
@@ -181,7 +183,7 @@ class Discord {
 
                     Db.query(
                         "select count(id) streamers from streamer where discord = @id",
-                        {id: {type: Db.INT, value: newMember.id}}
+                        {id: {type: Db.VARCHAR(50), value: newMember.id}}
                     ).then((data) => {
                         if (data.recordsets[0][0].streamers === 0) {
                             Db.query(
@@ -238,7 +240,8 @@ class Discord {
      * @returns {boolean} Whether the bot is connected to Discord.
      */
     static isConnected() {
-        return discord ? discord.status === 0 : false;
+        // Note: " && discord.ws && discord.ws.connection" will be unneeded in Discord.js v11.3.0.
+        return discord && sixGuild && discord.ws && discord.ws.connection ? discord.status === 0 : false;
     }
 
     // # #    ##    ###    ###    ###   ###   ##
@@ -317,6 +320,15 @@ class Discord {
     static richQueue(message, channel) {
         if (!channel) {
             channel = sixBotGGChannel;
+        }
+
+        if (message.embed && message.embed.fields) {
+            message.embed.fields.forEach((field) => {
+                if (field.value && field.value.length > 1024) {
+                    field.value = field.value.substring(0, 1024);
+                    console.log(message);
+                }
+            });
         }
 
         channel.send("", message);
@@ -598,16 +610,16 @@ class Discord {
             });
         }
 
-        if (stream.toLowerCase() === "sixgaminggg") {
+        if (stream.channel.display_name.toLowerCase() === "sixgaminggg") {
             message.embed.description = `${streamNotifyRole} - Six Gaming just went live on Twitch!  Watch at ${stream.channel.url}`;
             currentHost = "";
             manualHosting = false;
             Tmi.unhost("sixgaminggg");
             Tmi.queue("What's going on everyone?  Six Gaming is live!");
             discord.user.setStatus("online", stream.channel.status, "http://twitch.tv/SixGamingGG");
-        } else if (streamers.indexOf(stream.toLowerCase()) !== -1) {
+        } else if (streamers.indexOf(stream.channel.display_name.toLowerCase()) !== -1) {
             message.embed.description = `${streamNotifyRole} - Six Gamer ${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
-        } else if (hosts.indexOf(stream.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition
+        } else if (hosts.indexOf(stream.channel.display_name.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition
             message.embed.description = `${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
         } else {
             message.embed.description = `${stream.channel.display_name} has been hosted by Six Gaming on Twitch!  Watch at ${stream.channel.url}`;
@@ -618,7 +630,7 @@ class Discord {
             }
         }
 
-        discord.richQueue(message, liveStreamAnnouncementsChannel);
+        Discord.richQueue(message, liveStreamAnnouncementsChannel);
     }
 
     //                   #     ####               #          #  #         #                 ##   #                             ##
@@ -655,8 +667,8 @@ class Discord {
             positionChannel = (index) => {
                 const channel = sixGuild.channels.get(channels[index].id);
 
+                index++;
                 channel.edit({position: index}).then(() => {
-                    index++;
                     if (index < channels.length) {
                         positionChannel(index);
                     }
@@ -922,7 +934,9 @@ class Discord {
      */
     static createTextChannel(name) {
         return sixGuild.createChannel(name, "text").then((channel) => {
-            channel.edit({parent_id: streamersCategory.id}); // eslint-disable-line camelcase
+            channel.edit({parentId: streamersCategory.id});
+
+            return channel;
         });
     }
 
@@ -939,7 +953,12 @@ class Discord {
      */
     static createVoiceChannel(name) {
         return sixGuild.createChannel(name, "voice").then((channel) => {
-            channel.edit({parent_id: voiceCategory.id}); // eslint-disable-line camelcase
+            channel.edit({
+                parentId: voiceCategory.id,
+                bitrate: 64000
+            });
+
+            return channel;
         });
     }
 

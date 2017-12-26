@@ -123,10 +123,10 @@ class Log {
             Discord = require("./discord");
         }
 
-        const logChannel = Discord.findChannelByName("sixbotgg-log"),
-            errorChannel = Discord.findChannelByName("sixbotgg-errors");
-
         if (Discord.isConnected()) {
+            const logChannel = Discord.findChannelByName("sixbotgg-log"),
+                errorChannel = Discord.findChannelByName("sixbotgg-errors");
+
             queue.forEach((log) => {
                 const message = {
                     embed: {
@@ -144,7 +144,10 @@ class Log {
                 if (log.obj) {
                     switch (typeof log.obj) {
                         case "string":
-                            message.embed.fields.push({value: log.obj});
+                            message.embed.fields.push({
+                                name: "Message",
+                                value: log.obj
+                            });
                             break;
                         default:
                             if (log.obj instanceof Error) {
@@ -153,7 +156,10 @@ class Log {
                                     value: `\`\`\`${JSON.stringify(log.obj, Log.replaceErrors)}\`\`\``
                                 });
                             } else {
-                                message.embed.fields.push({value: `\`\`\`${JSON.stringify(log.obj, Log.replaceErrors)}\`\`\``});
+                                message.embed.fields.push({
+                                    name: "Data",
+                                    value: `\`\`\`${JSON.stringify(log.obj, Log.replaceErrors)}\`\`\``
+                                });
                             }
                             break;
                     }
@@ -163,6 +169,8 @@ class Log {
             });
 
             queue.splice(0, queue.length);
+        } else {
+            console.log(queue[queue.length - 1]);
         }
     }
 }
