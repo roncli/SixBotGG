@@ -401,16 +401,35 @@ class Commands {
                 return;
             }
 
+            if (Discord.currentHost === message) {
+                commands.service.queue(`Sorry, ${user}, but I am already hosting ${message}.`);
+                reject(new Error("Cannot host the currently hosted channel."));
+                return;
+            }
+
             Twitch.getChannelStream(message).then((results) => {
                 Discord.manualHosting = results && results.stream;
 
                 if (Discord.manualHosting) {
-                    Discord.currentHost = message;
-                    Tmi.host("sixgaminggg", Discord.currentHost).then(() => {
+                    Tmi.host("sixgaminggg", message).then(() => {
+                        Discord.currentHost = message;
+
                         Tmi.queue(`Now hosting ${Discord.currentHost}.  Check out their stream at http://twitch.tv/${Discord.currentHost}!`);
                         Discord.announceStream(results.stream);
                         resolve(true);
                     }).catch((err) => {
+                        if (err === "bad_host_hosting") {
+                            commands.service.queue(`Sorry, ${user}, but I am already hosting ${message}.`);
+                            reject(new Error("Cannot host the currently hosted channel."));
+                            return;
+                        }
+
+                        if (err === "bad_host_error") {
+                            commands.service.queue(`Sorry, ${user}, but Twitch is having issues.  Try hosting again later.`);
+                            reject(new Error("Twitch error while attempting to host."));
+                            return;
+                        }
+
                         commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
                         reject(new Exception("There was a Twitch chat error while attempting to host a channel.", err));
                     });
@@ -459,7 +478,7 @@ class Commands {
                 return;
             }
 
-            Tmi.unhost("sixgaminggg");
+            Tmi.unhost("sixgaminggg").catch(() => {});
             commands.service.queue("Exiting host mode.");
             Discord.manualHosting = false;
             Discord.currentHost = "";
@@ -615,7 +634,7 @@ class Commands {
                         "insert into host (streamer) values (@streamer)",
                         {streamer: {type: Db.VARCHAR(50), value: message}}
                     ).then(() => {
-                        Discord.addHost(message.toLowerCase());
+                        Discord.addHost(message);
                         commands.service.queue(`${user}, you have successfully added ${message} as a streamer to be hosted.`);
                         resolve(true);
                     }).catch((err) => {

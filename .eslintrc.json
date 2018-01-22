@@ -35,6 +35,7 @@
         "max-lines": "off",
         "max-params": "off",
         "max-statements": "off",
+        "multiline-comment-style": "off",
         "multiline-ternary": "off",
         "new-cap": [
             "error",

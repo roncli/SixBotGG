@@ -43,6 +43,7 @@ class Discord {
     static get discord() {
         return discord;
     }
+
     //                                      #    #  #                #
     //                                      #    #  #                #
     //  ##   #  #  ###   ###    ##   ###   ###   ####   ##    ###   ###
@@ -196,8 +197,8 @@ class Discord {
                                 Discord.addStreamersRole(newMember);
 
                                 Discord.queue(`${newMember}, you are now setup as a Six Gaming streamer at http://twitch.tv/${user}.  If you would like a text channel on Discord for your Twitch community, you can use \`!addmychannel\`.`);
-                                Discord.addStreamer(user.toLowerCase());
-                                Discord.removeHost(user.toLowerCase());
+                                Discord.addStreamer(user);
+                                Discord.removeHost(user);
                             }).catch((err) => {
                                 Log.exception("There was a database error inserting into the streamer table.", err);
                             });
@@ -460,8 +461,9 @@ class Discord {
             } else {
                 Discord.updateHosting(live);
             }
-        }).catch((err, results) => {
-            Log.exception(`Error getting streams: ${results}`, err);
+        }).catch(() => {
+            // This is commonly not an error, just try again in a minute.
+            setTimeout(Discord.checkStreams, 60000);
         });
     }
 
@@ -518,7 +520,7 @@ class Discord {
                 currentHost = liveStreamers[0].toLowerCase();
                 Tmi.queue(`Now hosting Six Gamer ${currentHost}.  Check out their stream at http://twitch.tv/${currentHost}!`);
                 Tmi.host("sixgaminggg", currentHost).catch((err) => {
-                    if (err !== "bad_host_hosting") {
+                    if (["bad_host_hosting", "bad_host_error"].indexOf(err) === -1) {
                         Log.exception("Problem hosting channel.", err);
                     }
                 });
@@ -528,7 +530,7 @@ class Discord {
                     hostingTimestamps.splice(0, 1);
                 }
                 streamers.splice(streamers.indexOf(currentHost), 1);
-                streamers.push(currentHost);
+                Discord.addHost(currentHost);
             }
             setTimeout(Discord.checkStreams, 60000);
             return;
@@ -543,11 +545,11 @@ class Discord {
         // Try to host a live host.
         liveStreamers = hosts.filter((host) => live.indexOf(host.toLowerCase()) !== -1);
         if (liveStreamers.length > 0) {
-            if (liveStreamers[0] !== currentHost) {
+            if (liveStreamers[0].toLowerCase() !== currentHost) {
                 currentHost = liveStreamers[0].toLowerCase();
                 Tmi.queue(`Now hosting ${currentHost}.  Check out their stream at http://twitch.tv/${currentHost}!`);
                 Tmi.host("sixgaminggg", currentHost).catch((err) => {
-                    if (err !== "bad_host_hosting") {
+                    if (["bad_host_hosting", "bad_host_error"].indexOf(err) === -1) {
                         Log.exception("Problem hosting channel.", err);
                     }
                 });
@@ -557,7 +559,7 @@ class Discord {
                     hostingTimestamps.splice(0, 1);
                 }
                 hosts.splice(hosts.indexOf(currentHost), 1);
-                hosts.push(currentHost);
+                Discord.addHost(currentHost);
             }
             setTimeout(Discord.checkStreams, 60000);
             return;
@@ -756,7 +758,7 @@ class Discord {
      * @returns {void}
      */
     static addStreamer(name) {
-        streamers.push(name);
+        streamers.push(name.toLowerCase());
     }
 
     //                                      ##    #
@@ -790,7 +792,7 @@ class Discord {
      * @returns {void}
      */
     static addHost(name) {
-        hosts.push(name);
+        hosts.push(name.toLowerCase());
     }
 
     //                                     #  #                #

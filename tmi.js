@@ -46,7 +46,9 @@ class Tmi {
 
         tmi.on("connected", () => {
             Log.log("Connected to tmi.");
-            tmi.raw("CAP REQ :twitch.tv/membership");
+            tmi.raw("CAP REQ :twitch.tv/membership").catch((err) => {
+                Log.exception("RAW command failed.", err);
+            });
         });
 
         tmi.on("disconnected", (ev) => {
@@ -101,7 +103,9 @@ class Tmi {
      */
     static connect() {
         Log.log("Connecting to tmi...");
-        tmi.connect();
+        tmi.connect().catch((err) => {
+            Log.exception("TMI connection failed.", err);
+        });
 
         // Setup IRC command rotation.
         clearTimeout(commandRotationTimeout);
@@ -152,7 +156,9 @@ class Tmi {
      * @returns {Promise} A promise that resolves when the message is sent.
      */
     static queue(message) {
-        return tmi.say("sixgaminggg", message);
+        return tmi.say("sixgaminggg", message).catch((err) => {
+            Log.exception("SAY command failed.", err);
+        });
     }
 
     // #                   #
