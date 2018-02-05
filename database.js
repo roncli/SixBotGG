@@ -57,22 +57,20 @@ class Database {
                         paramList[paramMap[i][0]] = paramMap[i][1];
                     }
 
-                    ps.execute(
-                        paramList, (errExecute, data) => {
-                            if (errExecute) {
-                                reject(errExecute);
+                    ps.execute(paramList, (errExecute, data) => {
+                        if (errExecute) {
+                            reject(errExecute);
+                            return;
+                        }
+
+                        ps.unprepare((errUnprepare) => {
+                            if (errUnprepare) {
+                                reject(errUnprepare);
                                 return;
                             }
-
-                            ps.unprepare((errUnprepare) => {
-                                if (errUnprepare) {
-                                    reject(errUnprepare);
-                                    return;
-                                }
-                                resolve(data);
-                            });
-                        }
-                    );
+                            resolve(data);
+                        });
+                    });
                 });
             });
         });

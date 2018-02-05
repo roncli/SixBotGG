@@ -127,11 +127,8 @@ class Discord {
             sixGuild = discord.guilds.find("name", "Six Gaming");
 
             liveStreamAnnouncementsChannel = sixGuild.channels.find("name", "live-stream-announcements");
-            // TODO: Fix with discord.js v11.3
-            // streamersCategory = sixGuild.channels.find("name", "Streamers");
-            // voiceCategory = sixGuild.channels.find("name", "Voice");
-            streamersCategory = {id: "385651317885894658"};
-            voiceCategory = {id: "385652112354312192"};
+            streamersCategory = sixGuild.channels.find("name", "Streamers");
+            voiceCategory = sixGuild.channels.find("name", "Voice");
             sixBotGGChannel = sixGuild.channels.find("name", "sixbotgg");
 
             streamersRole = sixGuild.roles.find("name", "Streamers");
@@ -418,7 +415,8 @@ class Discord {
             // Remove live channel data from offline streams.
             wentOffline.forEach((name) => {
                 if (name.toLowerCase() === "sixgaminggg") {
-                    discord.user.setStatus("online", null, null);
+                    discord.user.setStatus("online");
+                    discord.user.setActivity(null, {});
                 }
                 delete liveChannels[name];
             });
@@ -618,7 +616,8 @@ class Discord {
             manualHosting = false;
             Tmi.unhost("sixgaminggg");
             Tmi.queue("What's going on everyone?  Six Gaming is live!");
-            discord.user.setStatus("online", stream.channel.status, "http://twitch.tv/SixGamingGG");
+            discord.user.setStatus("online");
+            discord.user.setActivity(stream.channel.status, {url: "http://twitch.tv/SixGamingGG", type: "STREAMING"});
         } else if (streamers.indexOf(stream.channel.display_name.toLowerCase()) !== -1) {
             message.embed.description = `${streamNotifyRole} - Six Gamer ${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
         } else if (hosts.indexOf(stream.channel.display_name.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition
@@ -936,7 +935,7 @@ class Discord {
      */
     static createTextChannel(name) {
         return sixGuild.createChannel(name, "text").then((channel) => {
-            channel.edit({parentId: streamersCategory.id});
+            channel.setParent(streamersCategory);
 
             return channel;
         });
@@ -955,10 +954,8 @@ class Discord {
      */
     static createVoiceChannel(name) {
         return sixGuild.createChannel(name, "voice").then((channel) => {
-            channel.edit({
-                parentId: voiceCategory.id,
-                bitrate: 64000
-            });
+            channel.edit({bitrate: 64000});
+            channel.setParent(voiceCategory);
 
             return channel;
         });

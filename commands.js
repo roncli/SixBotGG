@@ -5,7 +5,6 @@ const Db = require("./database"),
     Twitch = require("./twitch"),
 
     addGameParse = /^([a-zA-Z0-9]{2,50}) +(.{2,255})$/,
-    codeParse = /^[1-9][0-9]{2}$/,
     userCreatedChannels = {};
 
 let Discord, Tmi;
@@ -848,7 +847,8 @@ class Commands {
             }
 
             Db.query(
-                "delete from game where code = @code", {code: {type: Db.VARCHAR(50), value: message}}
+                "delete from game where code = @code",
+                {code: {type: Db.VARCHAR(50), value: message}}
             ).then(() => {
                 commands.service.queue(`${user}, the game ${message} has been removed.`);
                 resolve(true);
