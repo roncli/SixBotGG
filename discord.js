@@ -185,7 +185,7 @@ class Discord {
                     ).then((data) => {
                         if (data.recordsets[0][0].streamers === 0) {
                             Db.query(
-                                "insert into streamer (streamer, discord, code, validated) values (@streamer, @discord, 0, 1)",
+                                "insert into streamer (streamer, discord) values (@streamer, @discord)",
                                 {
                                     streamer: {type: Db.VARCHAR(50), value: user},
                                     discord: {type: Db.VARCHAR(50), value: newMember.id}
@@ -379,89 +379,107 @@ class Discord {
      * @returns {void}
      */
     static checkStreams() {
-        Twitch.getStreams(["sixgaminggg"].concat(streamers, hosts).join(",")).then((streams) => {
-            const wentOffline = [],
-                wentLive = [];
-            let live = [];
+        // Remove users who left the server.
+        Db.query("select streamer, discord from streamer").then((data) => {
+            data.recordsets[0].forEach((streamer) => {
+                const {discord: id, streamer: name} = streamer;
 
-            // Get the list of live channels.
-            try {
-                live = streams.map((stream) => stream.channel.name.toLowerCase());
-            } catch (err) {
-                Log.exception("Error checking streams.", err);
-                setTimeout(() => Discord.checkStreams(), 60000);
-                return;
-            }
+                if (!Discord.findUserById(id)) {
+                    Db.query("delete from streamer where discord = @id", {id: {type: Db.VARCHAR(50), value: id}}).then(() => {
+                        Discord.removeStreamer(name);
+                    }).catch((err) => {
+                        Log.exception(`Database error removing streamer \`${name}\` \`${id}\`.`, err);
+                    });
+                }
+            });
 
-            // Being empty once is usually a sign of an error.  Will try again next time.
-            if (live.length === 0) {
-                if (!wasEmptyLast) {
-                    Log.log("Live list was empty.");
-                    wasEmptyLast = true;
-                    setTimeout(Discord.checkStreams, 60000);
+            Twitch.getStreams(["sixgaminggg"].concat(streamers, hosts).join(",")).then((streams) => {
+                const wentOffline = [],
+                    wentLive = [];
+                let live = [];
+
+                // Get the list of live channels.
+                try {
+                    live = streams.map((stream) => stream.channel.name.toLowerCase());
+                } catch (err) {
+                    Log.exception("Error checking streams.", err);
+                    setTimeout(() => Discord.checkStreams(), 60000);
                     return;
                 }
-            } else {
-                wasEmptyLast = false;
-            }
 
-            // Detect which streams have gone offline.
-            for (const key in liveChannels) {
-                if (live.indexOf(key) === -1) {
-                    wentOffline.push(key);
-                }
-            }
-
-            // Remove live channel data from offline streams.
-            wentOffline.forEach((name) => {
-                if (name.toLowerCase() === "sixgaminggg") {
-                    discord.user.setStatus("online");
-                    discord.user.setActivity(null, {});
-                }
-                delete liveChannels[name];
-            });
-
-            // Detect which streams have gone online.
-            live.forEach((name) => {
-                if (!liveChannels[name]) {
-                    wentLive.push(name);
-                }
-            });
-
-            // Save channel data.
-            streams.forEach((stream) => {
-                liveChannels[stream.channel.name.toLowerCase()] = stream;
-            });
-
-            // Discord notifications for new live channels.
-            wentLive.forEach((stream) => {
-                Discord.announceStream(liveChannels[stream]);
-            });
-
-            // If manual hosting is active, check it.  Afterwards, update hosting.
-            if (manualHosting) {
-                Twitch.getChannelStream(currentHost).then((results) => {
-                    manualHosting = results && results.stream;
-
-                    if (manualHosting) {
-                        ({stream: liveChannels[currentHost]} = results);
-                    } else {
-                        delete liveChannels[currentHost];
-                        currentHost = "";
+                // Being empty once is usually a sign of an error.  Will try again next time.
+                if (live.length === 0) {
+                    if (!wasEmptyLast) {
+                        Log.log("Live list was empty.");
+                        wasEmptyLast = true;
+                        setTimeout(Discord.checkStreams, 60000);
+                        return;
                     }
+                } else {
+                    wasEmptyLast = false;
+                }
 
-                    Discord.updateHosting(live);
-                }).catch((err) => {
-                    // Skip the current round of checking the manual host, and just check again next time.
-                    Discord.updateHosting(live);
-                    Log.exception(`Error checking current host ${currentHost}.`, err);
+                // Detect which streams have gone offline.
+                for (const key in liveChannels) {
+                    if (live.indexOf(key) === -1) {
+                        wentOffline.push(key);
+                    }
+                }
+
+                // Remove live channel data from offline streams.
+                wentOffline.forEach((name) => {
+                    if (name.toLowerCase() === "sixgaminggg") {
+                        discord.user.setStatus("online");
+                        discord.user.setActivity(null, {});
+                    }
+                    delete liveChannels[name];
                 });
-            } else {
-                Discord.updateHosting(live);
-            }
-        }).catch(() => {
-            // This is commonly not an error, just try again in a minute.
-            setTimeout(Discord.checkStreams, 60000);
+
+                // Detect which streams have gone online.
+                live.forEach((name) => {
+                    if (!liveChannels[name]) {
+                        wentLive.push(name);
+                    }
+                });
+
+                // Save channel data.
+                streams.forEach((stream) => {
+                    liveChannels[stream.channel.name.toLowerCase()] = stream;
+                });
+
+                // Discord notifications for new live channels.
+                wentLive.forEach((stream) => {
+                    Discord.announceStream(liveChannels[stream]);
+                });
+
+                // If manual hosting is active, check it.  Afterwards, update hosting.
+                if (manualHosting) {
+                    Twitch.getChannelStream(currentHost).then((results) => {
+                        manualHosting = results && results.stream;
+
+                        if (manualHosting) {
+                            ({stream: liveChannels[currentHost]} = results);
+                        } else {
+                            delete liveChannels[currentHost];
+                            currentHost = "";
+                        }
+
+                        Discord.updateHosting(live);
+                    }).catch((err) => {
+                        // Skip the current round of checking the manual host, and just check again next time.
+                        Discord.updateHosting(live);
+                        Log.exception(`Error checking current host ${currentHost}.`, err);
+                    });
+                } else {
+                    Discord.updateHosting(live);
+                }
+            }).catch(() => {
+                // This is commonly not an error, just try again in a minute.
+                setTimeout(Discord.checkStreams, 60000);
+            });
+        }).catch((err) => {
+            Log.exception("Database error getting streamers.", err);
+            setTimeout(() => Discord.checkStreams(), 60000);
         });
     }
 

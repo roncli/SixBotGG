@@ -16,8 +16,8 @@ const Db = require("./database"),
 (function startup() {
     Log.log("Starting up...");
 
-    // Get validated streamers and hosted channels.
-    Db.query("select streamer from streamer where validated = 1; select streamer from host").then((data) => {
+    // Get streamers and hosted channels.
+    Db.query("select streamer from streamer; select streamer from host").then((data) => {
         Log.log("Got streamer data.");
 
         // Startup tmi
@@ -33,6 +33,6 @@ const Db = require("./database"),
         data.recordsets[1].forEach((streamer) => Discord.addHost(streamer.streamer));
     }).catch((err) => {
         setTimeout(startup, 60000);
-        Log.exception("There was a database error getting validated streamers and hosted channels.", err);
+        Log.exception("There was a database error getting streamers and hosted channels.", err);
     });
 }());

@@ -34,9 +34,7 @@ The database is quite simple.  Here is the script that creates it:
         CREATE TABLE streamer(
             id int IDENTITY(1,1) NOT NULL,
             discord varchar(50) NOT NULL,
-            streamer varchar(50) NOT NULL,
-            code int NOT NULL,
-            validated bit NOT NULL CONSTRAINT DF_streamer_validated DEFAULT (0)
+            streamer varchar(50) NOT NULL
         )
 
 settings.js
