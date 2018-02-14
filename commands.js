@@ -400,6 +400,8 @@ class Commands {
                 return;
             }
 
+            message = message.toLowerCase();
+
             if (Discord.currentHost === message) {
                 commands.service.queue(`Sorry, ${user}, but I am already hosting ${message}.`);
                 reject(new Error("Cannot host the currently hosted channel."));

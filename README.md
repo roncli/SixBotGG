@@ -86,10 +86,16 @@ The following should be the contents of settings.js:
 
 Coming Soon
 ===========
-1.4.1
+1.4.2
 -----
 * Upgrade to new Twitch library that uses the new Helix API.
 * Nothing to see here. 😴
+
+1.4.1
+-----
+* Discord.js update to get channels inside categories working as expected.
+* Remove streamers that are no longer on the Discord server.
+* Get out. 👉
 
 Version History
 ===============

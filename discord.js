@@ -628,7 +628,7 @@ class Discord {
             });
         }
 
-        if (stream.channel.display_name.toLowerCase() === "sixgaminggg") {
+        if (stream.channel.display_name.toLowerCase() === "sixgaminggg") { // TODO: Should be lower case'd user name!
             message.embed.description = `${streamNotifyRole} - Six Gaming just went live on Twitch!  Watch at ${stream.channel.url}`;
             currentHost = "";
             manualHosting = false;
@@ -636,8 +636,9 @@ class Discord {
             Tmi.queue("What's going on everyone?  Six Gaming is live!");
             discord.user.setStatus("online");
             discord.user.setActivity(stream.channel.status, {url: "http://twitch.tv/SixGamingGG", type: "STREAMING"});
-        } else if (streamers.indexOf(stream.channel.display_name.toLowerCase()) !== -1) {
+        } else if (streamers.indexOf(stream.channel.display_name.toLowerCase()) !== -1) { // TODO: Should be lower case'd user name!
             message.embed.description = `${streamNotifyRole} - Six Gamer ${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
+        // TODO: Should be lower case'd user name!
         } else if (hosts.indexOf(stream.channel.display_name.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition
             message.embed.description = `${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
         } else {
