@@ -384,7 +384,7 @@ class Discord {
             data.recordsets[0].forEach((streamer) => {
                 const {discord: id, streamer: name} = streamer;
 
-                if (!Discord.findUserById(id)) {
+                if (!Discord.findGuildUserById(id)) {
                     Db.query("delete from streamer where discord = @id", {id: {type: Db.VARCHAR(50), value: id}}).then(() => {
                         Discord.removeStreamer(name);
                     }).catch((err) => {
@@ -533,9 +533,13 @@ class Discord {
         liveStreamers = streamers.filter((streamer) => live.indexOf(streamer.toLowerCase()) !== -1);
         if (liveStreamers.length > 0) {
             if (liveStreamers[0] !== currentHost) {
-                currentHost = liveStreamers[0].toLowerCase();
-                Tmi.queue(`Now hosting Six Gamer ${currentHost}.  Check out their stream at http://twitch.tv/${currentHost}!`);
-                Tmi.host("sixgaminggg", currentHost).catch((err) => {
+                const host = liveStreamers[0].toLowerCase();
+
+                Tmi.host("sixgaminggg", host).then(() => {
+                    currentHost = host;
+
+                    Tmi.queue(`Now hosting Six Gamer ${currentHost}.  Check out their stream at http://twitch.tv/${currentHost}!`);
+                }).catch((err) => {
                     if (["bad_host_hosting", "bad_host_error"].indexOf(err) === -1) {
                         Log.exception("Problem hosting channel.", err);
                     }
@@ -562,9 +566,13 @@ class Discord {
         liveStreamers = hosts.filter((host) => live.indexOf(host.toLowerCase()) !== -1);
         if (liveStreamers.length > 0) {
             if (liveStreamers[0].toLowerCase() !== currentHost) {
-                currentHost = liveStreamers[0].toLowerCase();
-                Tmi.queue(`Now hosting ${currentHost}.  Check out their stream at http://twitch.tv/${currentHost}!`);
-                Tmi.host("sixgaminggg", currentHost).catch((err) => {
+                const host = liveStreamers[0].toLowerCase();
+
+                Tmi.host("sixgaminggg", host).then(() => {
+                    currentHost = host;
+
+                    Tmi.queue(`Now hosting ${currentHost}.  Check out their stream at http://twitch.tv/${currentHost}!`);
+                }).catch((err) => {
                     if (["bad_host_hosting", "bad_host_error"].indexOf(err) === -1) {
                         Log.exception("Problem hosting channel.", err);
                     }
@@ -632,7 +640,7 @@ class Discord {
             message.embed.description = `${streamNotifyRole} - Six Gaming just went live on Twitch!  Watch at ${stream.channel.url}`;
             currentHost = "";
             manualHosting = false;
-            Tmi.unhost("sixgaminggg");
+            Tmi.unhost("sixgaminggg").catch(() => {});
             Tmi.queue("What's going on everyone?  Six Gaming is live!");
             discord.user.setStatus("online");
             discord.user.setActivity(stream.channel.status, {url: "http://twitch.tv/SixGamingGG", type: "STREAMING"});
@@ -716,20 +724,20 @@ class Discord {
         return sixGuild.member(user).voiceChannel;
     }
 
-    //   #    #             #  #  #                     ###         ###      #
-    //  # #                 #  #  #                     #  #         #       #
-    //  #    ##    ###    ###  #  #   ###    ##   ###   ###   #  #   #     ###
-    // ###    #    #  #  #  #  #  #  ##     # ##  #  #  #  #  #  #   #    #  #
-    //  #     #    #  #  #  #  #  #    ##   ##    #     #  #   # #   #    #  #
-    //  #    ###   #  #   ###   ##   ###     ##   #     ###     #   ###    ###
-    //                                                         #
+    //   #    #             #   ##          #    ##       #  #  #                     ###         ###      #
+    //  # #                 #  #  #               #       #  #  #                     #  #         #       #
+    //  #    ##    ###    ###  #     #  #  ##     #     ###  #  #   ###    ##   ###   ###   #  #   #     ###
+    // ###    #    #  #  #  #  # ##  #  #   #     #    #  #  #  #  ##     # ##  #  #  #  #  #  #   #    #  #
+    //  #     #    #  #  #  #  #  #  #  #   #     #    #  #  #  #    ##   ##    #     #  #   # #   #    #  #
+    //  #    ###   #  #   ###   ###   ###  ###   ###    ###   ##   ###     ##   #     ###     #   ###    ###
+    //                                                                                       #
     /**
-     * Returns the Discord user by their Discord ID.
+     * Returns the Discord user in the guild by their Discord ID.
      * @param {string} id The ID of the Discord user.
      * @returns {User} The Discord user.
      */
-    static findUserById(id) {
-        return discord.users.findAll("id", id);
+    static findGuildUserById(id) {
+        return sixGuild.members.find("id", id);
     }
 
     //   #    #             #   ##   #                             ##    ###         #  #

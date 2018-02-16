@@ -47,7 +47,7 @@ class Tmi {
         tmi.on("connected", () => {
             Log.log("Connected to tmi.");
             tmi.raw("CAP REQ :twitch.tv/membership").catch((err) => {
-                Log.exception("RAW command failed.", err);
+                Log.exception("Raw command failed.", err);
             });
         });
 
@@ -157,7 +157,7 @@ class Tmi {
      */
     static queue(message) {
         return tmi.say("sixgaminggg", message).catch((err) => {
-            Log.exception("SAY command failed.", err);
+            Log.exception("Say command failed.", err);
         });
     }
 
@@ -189,7 +189,9 @@ class Tmi {
      * @return {Promise} A promise that resolves when unhosting completes.
      */
     static unhost(hostingChannel) {
-        return tmi.unhost(hostingChannel);
+        return tmi.unhost(hostingChannel).catch((err) => {
+            Log.exception("Unhost command failed.", err);
+        });
     }
 
     //  #           #  #           #
