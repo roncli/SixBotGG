@@ -94,7 +94,9 @@ Coming Soon
 1.4.1
 -----
 * Discord.js update to get channels inside categories working as expected.
+* Added Brigitte to randomonium.
 * Remove streamers that are no longer on the Discord server.
+* Use database library for improved error handling.
 * Get out. 👉
 
 Version History

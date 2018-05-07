@@ -18,13 +18,13 @@
         "url": "https://github.com/roncli/SixBotGG.git"
     },
     "dependencies": {
-        "discord.js": "11.3.0",
-        "mssql": "4.1.0",
+        "discord.js": "11.3.2",
+        "node-database": "roncli/node-database#v1.0.2",
         "tmi.js": "1.2.1",
         "twitch-api": "0.5.0"
     },
     "engines": {
-        "node": ">=6.0.0"
+        "node": ">=10.0.0"
     },
     "private": true
 }

@@ -510,17 +510,12 @@ class Commands {
                 return;
             }
 
-            Db.query(
-                "select streamer from streamer where discord = @discord",
-                {discord: {type: Db.VARCHAR(50), value: user.id}}
-            ).then((data) => {
-                if (!data || !data.recordsets[0] || !data.recordsets[0][0]) {
+            Db.getStreamerByDiscord(user.id).then((streamer) => {
+                if (!streamer) {
                     commands.service.queue(`Sorry, ${user}, but you are not currently registered as a streamer.  Use \`!addtwitch\` to add your channel.`);
                     reject(new Error("User is not a streamer."));
                     return;
                 }
-
-                const {streamer} = data.recordsets[0][0];
 
                 Discord.createTextChannel(`twitch-${streamer}`).then((channel) => {
                     channel.setTopic(`This channel is for ${user}'s Twitch stream.  Follow ${user} on Twitch at http://twitch.tv/${streamer}.`).then(() => {
@@ -569,18 +564,14 @@ class Commands {
                 return;
             }
 
-            Db.query(
-                "select streamer from streamer where discord = @discord",
-                {discord: {type: Db.VARCHAR(50), value: user.id}}
-            ).then((data) => {
-                if (!data || !data.recordsets[0] || !data.recordsets[0][0]) {
+            Db.getStreamerByDiscord(user.id).then((streamer) => {
+                if (!streamer) {
                     commands.service.queue(`Sorry, ${user}, but you are not currently registered as a streamer.  Use \`!addtwitch\` to add your channel.`);
                     reject(new Error("User is not a streamer."));
                     return;
                 }
 
-                const {streamer} = data.recordsets[0][0],
-                    channel = Discord.findChannelByName(`twitch-${streamer}`);
+                const channel = Discord.findChannelByName(`twitch-${streamer}`);
 
                 if (channel) {
                     channel.delete();
@@ -621,20 +612,14 @@ class Commands {
                     return;
                 }
 
-                Db.query(
-                    "select streamer from host where streamer = @streamer",
-                    {streamer: {type: Db.VARCHAR(50), value: message}}
-                ).then((data) => {
-                    if (data && data.recordsets[0] && data.recordsets[0][0]) {
+                Db.hostExistsByName(message).then((exists) => {
+                    if (exists) {
                         commands.service.queue(`Sorry, ${user}, but ${message} has already been added as a streamer to be hosted.`);
                         reject(new Error("Streamer is already a hosted streamer."));
                         return;
                     }
 
-                    Db.query(
-                        "insert into host (streamer) values (@streamer)",
-                        {streamer: {type: Db.VARCHAR(50), value: message}}
-                    ).then(() => {
+                    Db.addHost(message).then(() => {
                         Discord.addHost(message);
                         commands.service.queue(`${user}, you have successfully added ${message} as a streamer to be hosted.`);
                         resolve(true);
@@ -674,22 +659,14 @@ class Commands {
                 return;
             }
 
-            Db.query(
-                "select id from host where streamer = @streamer",
-                {streamer: {type: Db.VARCHAR(50), value: message}}
-            ).then((data) => {
-                if (!data || !data.recordsets[0] || !data.recordsets[0][0]) {
+            Db.getHostIdByName(message).then((id) => {
+                if (!id) {
                     commands.service.queue(`Sorry, ${user}, but ${message} is not currently a hosted streamer.`);
                     reject(new Error("Stremaer is not a hosted streamer."));
                     return;
                 }
 
-                const {id} = data.recordsets[0][0];
-
-                Db.query(
-                    "delete from host where id = @id",
-                    {id: {type: Db.INT, value: id}}
-                ).then(() => {
+                Db.deleteHostById(id).then(() => {
                     Discord.removeHost(message);
                     commands.service.queue(`${user}, ${message} has been removed as a hosted streamer.`);
                     resolve(true);
@@ -789,13 +766,7 @@ class Commands {
                 return;
             }
 
-            Db.query(
-                "insert into game (game, code) values (@game, @code)",
-                {
-                    game: {type: Db.VARCHAR(255), value: game},
-                    code: {type: Db.VARCHAR(50), value: short}
-                }
-            ).then(() => {
+            Db.addGame(game, short).then(() => {
                 Discord.createRole({
                     name: short,
                     color: 0xFF0000,
@@ -848,10 +819,7 @@ class Commands {
                 role.delete();
             }
 
-            Db.query(
-                "delete from game where code = @code",
-                {code: {type: Db.VARCHAR(50), value: message}}
-            ).then(() => {
+            Db.deleteGameByCode(message).then(() => {
                 commands.service.queue(`${user}, the game ${message} has been removed.`);
                 resolve(true);
             }).catch((err) => {
@@ -881,16 +849,16 @@ class Commands {
                 return;
             }
 
-            Db.query("select game, code from game order by code").then((data) => {
-                let response = "You may use `!notify <game>` for the following games:";
-
-                if (!data || !data.recordsets[0] || data.recordsets[0].length === 0) {
+            Db.getGames().then((games) => {
+                if (!games || games.length === 0) {
                     commands.service.queue(`Sorry, ${user}, but there are no games to be notified for.`);
                     reject(new Error("There are no games to be notified for."));
                     return;
                 }
 
-                data.recordsets[0].forEach((row) => {
+                let response = "You may use `!notify <game>` for the following games:";
+
+                games.forEach((row) => {
                     response += `\n\`${row.code}\` - ${row.game}`;
                 });
 

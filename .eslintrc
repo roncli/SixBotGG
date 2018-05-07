@@ -4,9 +4,6 @@
         "node": true
     },
     "parserOptions": {
-        "ecmaFeatures": {
-            "impliedStrict": true
-        },
         "sourceType": "module",
         "ecmaVersion": 6
     },

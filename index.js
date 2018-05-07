@@ -17,7 +17,7 @@ const Db = require("./database"),
     Log.log("Starting up...");
 
     // Get streamers and hosted channels.
-    Db.query("select streamer from streamer; select streamer from host").then((data) => {
+    Db.getStreamersAndHosts().then((data) => {
         Log.log("Got streamer data.");
 
         // Startup tmi
@@ -29,8 +29,8 @@ const Db = require("./database"),
         Discord.connect();
 
         // Add streamers and hosts.
-        data.recordsets[0].forEach((streamer) => Discord.addStreamer(streamer.streamer));
-        data.recordsets[1].forEach((streamer) => Discord.addHost(streamer.streamer));
+        data.streamers.forEach((streamer) => Discord.addStreamer(streamer));
+        data.hosts.forEach((host) => Discord.addHost(host));
     }).catch((err) => {
         setTimeout(startup, 60000);
         Log.exception("There was a database error getting streamers and hosted channels.", err);

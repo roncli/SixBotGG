@@ -179,18 +179,9 @@ class Discord {
                 if (matches) {
                     const user = matches[1];
 
-                    Db.query(
-                        "select count(id) streamers from streamer where discord = @id",
-                        {id: {type: Db.VARCHAR(50), value: newMember.id}}
-                    ).then((data) => {
-                        if (data.recordsets[0][0].streamers === 0) {
-                            Db.query(
-                                "insert into streamer (streamer, discord) values (@streamer, @discord)",
-                                {
-                                    streamer: {type: Db.VARCHAR(50), value: user},
-                                    discord: {type: Db.VARCHAR(50), value: newMember.id}
-                                }
-                            ).then(() => {
+                    Db.streamerExistsByDiscord(newMember.id).then((exists) => {
+                        if (!exists) {
+                            Db.addStreamer(user, newMember.id).then(() => {
                                 Discord.addStreamersRole(newMember);
 
                                 Discord.queue(`${newMember}, you are now setup as a Six Gaming streamer at http://twitch.tv/${user}.  If you would like a text channel on Discord for your Twitch community, you can use \`!addmychannel\`.`);
@@ -224,6 +215,10 @@ class Discord {
             Log.log("Connected.");
         }).catch((err) => {
             Log.exception("Error connecting to Discord, will automatically retry.", err);
+        });
+
+        discord.on("error", (err) => {
+            Log.exception("Discord error.", err.error || err);
         });
     }
 
@@ -380,18 +375,20 @@ class Discord {
      */
     static checkStreams() {
         // Remove users who left the server.
-        Db.query("select streamer, discord from streamer").then((data) => {
-            data.recordsets[0].forEach((streamer) => {
-                const {discord: id, streamer: name} = streamer;
+        Db.getStreamers().then((streamerList) => {
+            if (streamerList) {
+                streamerList.forEach((streamer) => {
+                    const {discord: id, streamer: name} = streamer;
 
-                if (!Discord.findGuildUserById(id)) {
-                    Db.query("delete from streamer where discord = @id", {id: {type: Db.VARCHAR(50), value: id}}).then(() => {
-                        Discord.removeStreamer(name);
-                    }).catch((err) => {
-                        Log.exception(`Database error removing streamer \`${name}\` \`${id}\`.`, err);
-                    });
-                }
-            });
+                    if (!Discord.findGuildUserById(id)) {
+                        Db.deleteStreamerByDiscord(id).then(() => {
+                            Discord.removeStreamer(name);
+                        }).catch((err) => {
+                            Log.exception(`Database error removing streamer \`${name}\` \`${id}\`.`, err);
+                        });
+                    }
+                });
+            }
 
             Twitch.getStreams(["sixgaminggg"].concat(streamers, hosts).join(",")).then((streams) => {
                 const wentOffline = [],
@@ -636,7 +633,7 @@ class Discord {
             });
         }
 
-        if (stream.channel.display_name.toLowerCase() === "sixgaminggg") { // TODO: Should be lower case'd user name!
+        if (stream.channel.display_name.toLowerCase() === "sixgaminggg") {
             message.embed.description = `${streamNotifyRole} - Six Gaming just went live on Twitch!  Watch at ${stream.channel.url}`;
             currentHost = "";
             manualHosting = false;
@@ -644,9 +641,8 @@ class Discord {
             Tmi.queue("What's going on everyone?  Six Gaming is live!");
             discord.user.setStatus("online");
             discord.user.setActivity(stream.channel.status, {url: "http://twitch.tv/SixGamingGG", type: "STREAMING"});
-        } else if (streamers.indexOf(stream.channel.display_name.toLowerCase()) !== -1) { // TODO: Should be lower case'd user name!
+        } else if (streamers.indexOf(stream.channel.display_name.toLowerCase()) !== -1) {
             message.embed.description = `${streamNotifyRole} - Six Gamer ${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
-        // TODO: Should be lower case'd user name!
         } else if (hosts.indexOf(stream.channel.display_name.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition
             message.embed.description = `${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
         } else {
