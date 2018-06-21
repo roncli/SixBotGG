@@ -174,7 +174,13 @@ class Tmi {
      * @return {Promise} A promise that resolves when hosting completes.
      */
     static host(hostingChannel, hostedChannel) {
-        return tmi.host(hostingChannel, hostedChannel);
+        return tmi.host(hostingChannel, hostedChannel).catch((err) => {
+            if (err === "No response from Twitch.") {
+                Log.log(`Host command from ${hostingChannel} to ${hostedChannel} failed due to no response from Twitch.`);
+            } else {
+                Log.exception(`Host command from ${hostingChannel} to ${hostedChannel} failed.`, err);
+            }
+        });
     }
 
     //             #                   #
@@ -190,7 +196,11 @@ class Tmi {
      */
     static unhost(hostingChannel) {
         return tmi.unhost(hostingChannel).catch((err) => {
-            Log.exception("Unhost command failed.", err);
+            if (err === "No response from Twitch.") {
+                Log.log(`Unhost command from ${hostingChannel} failed due to no response from Twitch.`);
+            } else {
+                Log.exception(`Unhost command from ${hostingChannel} failed.`, err);
+            }
         });
     }
 

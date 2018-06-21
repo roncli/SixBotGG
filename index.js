@@ -36,3 +36,7 @@ const Db = require("./database"),
         Log.exception("There was a database error getting streamers and hosted channels.", err);
     });
 }());
+
+process.on("unhandledRejection", (err) => {
+    Log.exception("Unhandled promise rejection caught.", err);
+});

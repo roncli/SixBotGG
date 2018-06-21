@@ -182,11 +182,15 @@ class Discord {
                     Db.streamerExistsByDiscord(newMember.id).then((exists) => {
                         if (!exists) {
                             Db.addStreamer(user, newMember.id).then(() => {
-                                Discord.addStreamersRole(newMember);
+                                Db.deleteHostByUser(user).then(() => {
+                                    Discord.addStreamersRole(newMember);
 
-                                Discord.queue(`${newMember}, you are now setup as a Six Gaming streamer at http://twitch.tv/${user}.  If you would like a text channel on Discord for your Twitch community, you can use \`!addmychannel\`.`);
-                                Discord.addStreamer(user);
-                                Discord.removeHost(user);
+                                    Discord.queue(`${newMember}, you are now setup as a Six Gaming streamer at http://twitch.tv/${user}.  If you would like a text channel on Discord for your Twitch community, you can use \`!addmychannel\`.`);
+                                    Discord.addStreamer(user);
+                                    Discord.removeHost(user);
+                                }).catch((err) => {
+                                    Log.exception("There was a database error while removing a hosted streamer after becoming a Six Gaming streamer.", err);
+                                });
                             }).catch((err) => {
                                 Log.exception("There was a database error inserting into the streamer table.", err);
                             });
@@ -434,7 +438,7 @@ class Discord {
 
                 // Detect which streams have gone online.
                 live.forEach((name) => {
-                    if (!liveChannels[name]) {
+                    if (!liveChannels[name] && wentLive.indexOf(name) === -1) {
                         wentLive.push(name);
                     }
                 });

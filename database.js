@@ -92,6 +92,22 @@ class Database {
         return db.query("delete from host where id = @id", {id: {type: Db.INT, value: id}});
     }
 
+    //    #        ##           #          #  #                #    ###         #  #
+    //    #         #           #          #  #                #    #  #        #  #
+    //  ###   ##    #     ##   ###    ##   ####   ##    ###   ###   ###   #  #  #  #   ###    ##   ###
+    // #  #  # ##   #    # ##   #    # ##  #  #  #  #  ##      #    #  #  #  #  #  #  ##     # ##  #  #
+    // #  #  ##     #    ##     #    ##    #  #  #  #    ##    #    #  #   # #  #  #    ##   ##    #
+    //  ###   ##   ###    ##     ##   ##   #  #   ##   ###      ##  ###     #    ##   ###     ##   #
+    //                                                                     #
+    /**
+     * Deletes a host by their stream name.
+     * @param {string} name The name of the host to delete.
+     * @returns {Promise} A promise that resolves when the host has been deleted.
+     */
+    static deleteHostByUser(name) {
+        return db.query("delete from host where streamer = @user", {user: {type: Db.VARCHAR(50), value: name}});
+    }
+
     //    #        ##           #           ##    #                                        ###         ###    #                                #
     //    #         #           #          #  #   #                                        #  #        #  #                                    #
     //  ###   ##    #     ##   ###    ##    #    ###   ###    ##    ###  # #    ##   ###   ###   #  #  #  #  ##     ###    ##    ##   ###    ###

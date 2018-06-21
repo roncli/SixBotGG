@@ -1,4 +1,6 @@
-const queue = [];
+const util = require("util"),
+
+    queue = [];
 
 let Discord;
 
@@ -15,33 +17,6 @@ let Discord;
  * A class that handles logging.
  */
 class Log {
-    //                   ##                      ####
-    //                    #                      #
-    // ###    ##   ###    #     ###   ##    ##   ###   ###   ###    ##   ###    ###
-    // #  #  # ##  #  #   #    #  #  #     # ##  #     #  #  #  #  #  #  #  #  ##
-    // #     ##    #  #   #    # ##  #     ##    #     #     #     #  #  #       ##
-    // #      ##   ###   ###    # #   ##    ##   ####  #     #      ##   #     ###
-    //             #
-    /**
-     * A JSON.stringify helper function that turns errors into normal objects prior to stringifying them.
-     * @param {*} _ Unused.
-     * @param {*} value The object to be translated.
-     * @returns {*} The original object if not an error, or the error as an object.
-     */
-    static replaceErrors(_, value) {
-        if (value instanceof Error) {
-            const error = {};
-
-            Object.getOwnPropertyNames(value).forEach((key) => {
-                ({[key]: error[key]} = value);
-            });
-
-            return error;
-        }
-
-        return value;
-    }
-
     // ##
     //  #
     //  #     ##    ###
@@ -142,27 +117,10 @@ class Log {
                 }
 
                 if (log.obj) {
-                    switch (typeof log.obj) {
-                        case "string":
-                            message.embed.fields.push({
-                                name: "Message",
-                                value: log.obj
-                            });
-                            break;
-                        default:
-                            if (log.obj instanceof Error) {
-                                message.embed.fields.push({
-                                    name: "Stack Trace",
-                                    value: `\`\`\`${JSON.stringify(log.obj, Log.replaceErrors)}\`\`\``
-                                });
-                            } else {
-                                message.embed.fields.push({
-                                    name: "Data",
-                                    value: `\`\`\`${JSON.stringify(log.obj, Log.replaceErrors)}\`\`\``
-                                });
-                            }
-                            break;
-                    }
+                    message.embed.fields.push({
+                        name: "Message",
+                        value: util.inspect(log.obj)
+                    });
                 }
 
                 Discord.richQueue(message, log.type === "exception" ? errorChannel : logChannel);
