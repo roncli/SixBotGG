@@ -40,6 +40,15 @@ let currentHost = "",
  * A static class that handles all Discord.js interctions.
  */
 class Discord {
+    //    #   #                                #
+    //    #                                    #
+    //  ###  ##     ###    ##    ##   ###    ###
+    // #  #   #    ##     #     #  #  #  #  #  #
+    // #  #   #      ##   #     #  #  #     #  #
+    //  ###  ###   ###     ##    ##   #      ###
+    /**
+     * @returns {Client} The Discord object.
+     */
     static get discord() {
         return discord;
     }
@@ -121,7 +130,7 @@ class Discord {
     static startup() {
         Discord.commands = new Commands(Discord);
 
-        discord.addListener("ready", () => {
+        discord.on("ready", () => {
             Log.log("Connected to Discord.");
 
             sixGuild = discord.guilds.find("name", "Six Gaming");
@@ -147,17 +156,13 @@ class Discord {
             }
         });
 
-        discord.on("disconnect", (ev) => {
-            Log.exception("Disconnected from Discord.", ev);
-        });
-
-        discord.addListener("message", (message) => {
+        discord.on("message", (message) => {
             if (message.guild && message.guild.name === "Six Gaming" && message.channel.name === "sixbotgg" && message.channel.type === "text") {
                 Discord.message(message.author, message.content);
             }
         });
 
-        discord.addListener("voiceStateUpdate", (oldMember, newMember) => {
+        discord.on("voiceStateUpdate", (oldMember, newMember) => {
             if (oldMember.voiceChannel) {
                 if (oldMember.voiceChannel.name !== "\u{1F4AC} General" && oldMember.voiceChannel.members.size === 0) {
                     Discord.markEmptyVoiceChannel(oldMember.voiceChannel);
@@ -172,7 +177,7 @@ class Discord {
             }
         });
 
-        discord.addListener("presenceUpdate", (oldMember, newMember) => {
+        discord.on("presenceUpdate", (oldMember, newMember) => {
             if (newMember.presence && newMember.presence.game && newMember.presence.game.streaming && newMember.presence.game.url && newMember.presence.game.url.includes("twitch.tv")) {
                 const matches = urlParse.exec(newMember.presence.game.url);
 
@@ -210,19 +215,28 @@ class Discord {
     // #     #  #  #  #  #  #  ##    #      #
     //  ##    ##   #  #  #  #   ##    ##     ##
     /**
-     * Connects to Discord.
+     * Connects to Discord.  Should only ever be called once.
      * @returns {void}
      */
     static connect() {
+        discord.on("error", (err) => {
+            if (err.code === "ECONNRESET") {
+                Log.warning("Connection reset from Discord.");
+            } else {
+                Log.exception("Discord error.", err.error || err);
+            }
+        });
+
+        discord.on("disconnect", (err) => {
+            Log.exception("Disconnected from Discord.", err);
+        });
+
         Log.log("Connecting to Discord...");
+
         discord.login(settings.discord.token).then(() => {
             Log.log("Connected.");
         }).catch((err) => {
             Log.exception("Error connecting to Discord, will automatically retry.", err);
-        });
-
-        discord.on("error", (err) => {
-            Log.exception("Discord error.", err.error || err);
         });
     }
 
@@ -237,8 +251,7 @@ class Discord {
      * @returns {boolean} Whether the bot is connected to Discord.
      */
     static isConnected() {
-        // Note: " && discord.ws && discord.ws.connection" will be unneeded in Discord.js v11.3.0.
-        return discord && sixGuild && discord.ws && discord.ws.connection ? discord.status === 0 : false;
+        return discord && sixGuild ? discord.status === 0 : false;
     }
 
     // # #    ##    ###    ###    ###   ###   ##
@@ -428,13 +441,25 @@ class Discord {
                 }
 
                 // Remove live channel data from offline streams.
-                wentOffline.forEach((name) => {
+                for (const name of wentOffline) {
                     if (name.toLowerCase() === "sixgaminggg") {
-                        discord.user.setStatus("online");
-                        discord.user.setActivity(null, {});
+                        discord.user.setStatus("online").catch((err) => {
+                            if (err.code === "ECONNRESET") {
+                                Log.warning("Connection reset while setting status to online.");
+                            } else {
+                                Log.exception("Error setting status to online.", err);
+                            }
+                        });
+                        discord.user.setActivity(null, {}).catch((err) => {
+                            if (err.code === "ECONNRESET") {
+                                Log.warning("Connection reset while removing activity.");
+                            } else {
+                                Log.exception("Error removing activity.", err);
+                            }
+                        });
                     }
                     delete liveChannels[name];
-                });
+                }
 
                 // Detect which streams have gone online.
                 live.forEach((name) => {
@@ -643,8 +668,20 @@ class Discord {
             manualHosting = false;
             Tmi.unhost("sixgaminggg").catch(() => {});
             Tmi.queue("What's going on everyone?  Six Gaming is live!");
-            discord.user.setStatus("online");
-            discord.user.setActivity(stream.channel.status, {url: "http://twitch.tv/SixGamingGG", type: "STREAMING"});
+            discord.user.setStatus("online").catch((err) => {
+                if (err.code === "ECONNRESET") {
+                    Log.warning("Connection reset while setting status to online.");
+                } else {
+                    Log.exception("Error setting status to online.", err);
+                }
+            });
+            discord.user.setActivity(stream.channel.status, {url: "http://twitch.tv/SixGamingGG", type: "STREAMING"}).catch((err) => {
+                if (err.code === "ECONNRESET") {
+                    Log.warning("Connection reset while setting activity.");
+                } else {
+                    Log.exception("Error setting activity.", err);
+                }
+            });
         } else if (streamers.indexOf(stream.channel.display_name.toLowerCase()) !== -1) {
             message.embed.description = `${streamNotifyRole} - Six Gamer ${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
         } else if (hosts.indexOf(stream.channel.display_name.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition

@@ -25,7 +25,8 @@ const owHeroes = [
     "Orisa",
     "Doomfist",
     "Moira",
-    "Brigitte"
+    "Brigitte",
+    "Wrecking Ball"
 ];
 
 //  ####                     #                                #

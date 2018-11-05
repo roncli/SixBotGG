@@ -2,6 +2,9 @@ const util = require("util"),
 
     queue = [];
 
+/**
+ * @type {typeof import("./discord")}
+ */
 let Discord;
 
 //  #

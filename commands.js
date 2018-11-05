@@ -7,7 +7,15 @@ const Db = require("./database"),
     addGameParse = /^([a-zA-Z0-9]{2,50}) +(.{2,255})$/,
     userCreatedChannels = {};
 
-let Discord, Tmi;
+/**
+ * @type {typeof import("./discord")}
+ */
+let Discord;
+
+/**
+ * @type {typeof import("./tmi")}
+ */
+let Tmi;
 
 //   ###                                          #
 //  #   #                                         #

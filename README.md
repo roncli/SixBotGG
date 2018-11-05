@@ -93,10 +93,13 @@ Coming Soon
 
 1.4.1
 -----
+* Remove streamers that are no longer on the Discord server.
+* Fixed multiple Twitch live announcements.
 * Discord.js update to get channels inside categories working as expected.
 * Added Brigitte to randomonium.
-* Remove streamers that are no longer on the Discord server.
 * Use database library for improved error handling.
+* Improved error logging.
+* Added Brigitte and Wrecking Ball to randomonium.
 * Get out. 👉
 
 Version History
