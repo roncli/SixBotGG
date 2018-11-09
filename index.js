@@ -16,6 +16,12 @@ const Db = require("./database"),
 (function startup() {
     Log.log("Starting up...");
 
+    if (process.platform === "win32") {
+        process.title = "SixBotGG";
+    } else {
+        process.stdout.write("\x1b]2;SixBotGG\x1b\x5c");
+    }
+
     // Get streamers and hosted channels.
     Db.getStreamersAndHosts().then((data) => {
         Log.log("Got streamer data.");
