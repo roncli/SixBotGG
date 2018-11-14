@@ -99,7 +99,7 @@ Coming Soon
 * Added Brigitte to randomonium.
 * Use database library for improved error handling.
 * Improved error logging.
-* Added Brigitte and Wrecking Ball to randomonium.
+* Added Brigitte, Wrecking Ball, and Ashe to randomonium.
 * Get out. 👉
 
 Version History
