@@ -13,7 +13,7 @@ const Db = require("./database"),
 /**
  * Starts up the application.
  */
-(function startup() {
+(async function startup() {
     Log.log("Starting up...");
 
     // Set the window title.
@@ -24,24 +24,28 @@ const Db = require("./database"),
     }
 
     // Get streamers and hosted channels.
-    Db.getStreamersAndHosts().then((data) => {
-        Log.log("Got streamer data.");
-
-        // Startup tmi
-        Tmi.startup();
-        Tmi.connect();
-
-        // Startup Discord
-        Discord.startup();
-        Discord.connect();
-
-        // Add streamers and hosts.
-        data.streamers.forEach((streamer) => Discord.addStreamer(streamer));
-        data.hosts.forEach((host) => Discord.addHost(host));
-    }).catch((err) => {
+    let data;
+    try {
+        data = await Db.getStreamersAndHosts();
+    } catch (err) {
         setTimeout(startup, 60000);
-        Log.exception("There was a database error getting streamers and hosted channels.", err);
-    });
+        Log.exception("There was a database error getting streamers and hosted channels.  Retrying in 60 seconds...", err);
+        return;
+    }
+
+    Log.log("Got streamer data.");
+
+    // Startup tmi
+    Tmi.startup();
+    await Tmi.connect();
+
+    // Startup Discord
+    Discord.startup();
+    await Discord.connect();
+
+    // Add streamers and hosts.
+    data.streamers.forEach((streamer) => Discord.addStreamer(streamer));
+    data.hosts.forEach((host) => Discord.addHost(host));
 }());
 
 process.on("unhandledRejection", (err) => {

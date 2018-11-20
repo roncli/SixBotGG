@@ -2,10 +2,12 @@ const DiscordJs = require("discord.js"),
 
     Commands = require("./commands"),
     Db = require("./database"),
+    Exception = require("./exception"),
     Log = require("./log"),
     settings = require("./settings"),
     Tmi = require("./tmi"),
     Twitch = require("./twitch"),
+    Warning = require("./warning"),
 
     channelDeletionTimeouts = {},
     discord = new DiscordJs.Client(settings.discord),
@@ -156,9 +158,9 @@ class Discord {
             }
         });
 
-        discord.on("message", (message) => {
+        discord.on("message", async (message) => {
             if (message.guild && message.guild.name === "Six Gaming" && message.channel.name === "sixbotgg" && message.channel.type === "text") {
-                Discord.message(message.author, message.content);
+                await Discord.message(message.author, message.content);
             }
         });
 
@@ -262,25 +264,36 @@ class Discord {
     /**
      * Parses a message.
      * @param {User} user The user who sent the message.
-     * @param {string} text The text of the message.
-     * @returns {void}
+     * @param {string} message The text of the message.
+     * @returns {Promise} A promise that resolves when the message is parsed.
      */
-    static message(user, text) {
-        const matches = messageParse.exec(text);
+    static async message(user, message) {
+        for (const text of message.split("\n")) {
+            if (messageParse.test(text)) {
+                const matches = messageParse.exec(text),
+                    command = matches[1].toLocaleLowerCase(),
+                    args = matches[2];
 
-        if (matches) {
-            if (Object.getOwnPropertyNames(Commands.prototype).filter((p) => typeof Commands.prototype[p] === "function" && p !== "constructor").indexOf(matches[1]) !== -1) {
-                Discord.commands[matches[1]](user, matches[2]).then((success) => {
+                if (Object.getOwnPropertyNames(Commands.prototype).filter((p) => typeof Commands.prototype[p] === "function" && p !== "constructor").indexOf(command) !== -1) {
+                    let success;
+                    try {
+                        await Discord.commands[command](user, args);
+                    } catch (err) {
+                        if (err instanceof Warning) {
+                            Log.warning(`${user}: ${text}\n${err}`);
+                        } else if (err instanceof Exception) {
+                            Log.exception(err.message, err.innerError);
+                        } else {
+                            Log.exception("Unhandled error found.", err);
+                        }
+
+                        return;
+                    }
+
                     if (success) {
                         Log.log(`${user}: ${text}`);
                     }
-                }).catch((err) => {
-                    if (err.innerError) {
-                        Log.exception(err.message, err.innerError);
-                    } else {
-                        Log.warning(err);
-                    }
-                });
+                }
             }
         }
     }
@@ -711,8 +724,12 @@ class Discord {
      * @returns {void}
      */
     static markEmptyVoiceChannel(channel) {
-        channelDeletionTimeouts[channel.id] = setTimeout(() => {
-            channel.delete();
+        channelDeletionTimeouts[channel.id] = setTimeout(async () => {
+            try {
+                await channel.delete();
+            } catch (err) {
+                Log.exception(`Couldn't delete empty voice channel ${channel}.`, err);
+            }
             delete channelDeletionTimeouts[channel.id];
         }, 300000);
     }
@@ -725,24 +742,27 @@ class Discord {
     // ###     ##   #       ##  ###   ###   ###     ##    ##   #      ###   ##   #  #   # #  #  #  #  #   ##   ###   ###
     /**
      * Sorts Discord channels.
-     * @returns {void}
+     * @returns {Promise} A promise that resolves when the Discord channels are sorted.
      */
-    static sortDiscordChannels() {
+    static async sortDiscordChannels() {
         const channels = Array.from(sixGuild.channels.filter((channel) => channel.name.startsWith("twitch-")).values()).sort((a, b) => a.name.localeCompare(b.name)),
-            positionChannel = (index) => {
+            positionChannel = async (index) => {
                 const channel = sixGuild.channels.get(channels[index].id);
 
                 index++;
-                channel.edit({position: index}).then(() => {
-                    if (index < channels.length) {
-                        positionChannel(index);
-                    }
-                }).catch((err) => {
+                try {
+                    await channel.edit({position: index});
+                } catch (err) {
                     Log.exception("Problem repositioning channels.", err);
-                });
+                    return;
+                }
+
+                if (index < channels.length) {
+                    positionChannel(index);
+                }
             };
 
-        positionChannel(0);
+        await positionChannel(0);
     }
 
     //              #    #  #                     #  #         #                 ##   #                             ##
@@ -821,7 +841,7 @@ class Discord {
      * @returns {void}
      */
     static addStreamer(name) {
-        streamers.push(name.toLowerCase());
+        streamers.push(name.toLocaleLowerCase());
     }
 
     //                                      ##    #
@@ -855,7 +875,7 @@ class Discord {
      * @returns {void}
      */
     static addHost(name) {
-        hosts.push(name.toLowerCase());
+        hosts.push(name.toLocaleLowerCase());
     }
 
     //                                     #  #                #
@@ -888,8 +908,8 @@ class Discord {
      * @param {User} user The user to add to the role.
      * @returns {Promise} A promise that resolves when the user has been added to the role.
      */
-    static addStreamersRole(user) {
-        return sixGuild.member(user).addRole(streamersRole);
+    static async addStreamersRole(user) {
+        await sixGuild.member(user).addRole(streamersRole);
     }
 
     //                                      ##    #                                               ###         ##
@@ -903,8 +923,8 @@ class Discord {
      * @param {User} user The user to remove from the role.
      * @returns {Promise} A promise that resovles when the user has been removed from the role.
      */
-    static removeStreamersRole(user) {
-        return sixGuild.member(user).removeRole(streamersRole);
+    static async removeStreamersRole(user) {
+        await sixGuild.member(user).removeRole(streamersRole);
     }
 
     //          #     #   ##    #                            #  #         #     #      #         ###         ##
@@ -919,8 +939,8 @@ class Discord {
      * @param {User} user The user to add to the role.
      * @returns {Promise} A promise that resolves when the user has been added to the role.
      */
-    static addStreamNotifyRole(user) {
-        return sixGuild.member(user).addRole(streamNotifyRole);
+    static async addStreamNotifyRole(user) {
+        await sixGuild.member(user).addRole(streamNotifyRole);
     }
 
     //                                      ##    #                            #  #         #     #      #         ###         ##
@@ -935,8 +955,8 @@ class Discord {
      * @param {User} user The user to remove from the role.
      * @returns {Promise} A promise that resolves when the user has been removed from the role.
      */
-    static removeStreamNotifyRole(user) {
-        return sixGuild.member(user).removeRole(streamNotifyRole);
+    static async removeStreamNotifyRole(user) {
+        await sixGuild.member(user).removeRole(streamNotifyRole);
     }
 
     //                          #          ###         ##
@@ -966,8 +986,8 @@ class Discord {
      * @param {Role} role The role to add the user to.
      * @returns {Promise} A promise that resolves when the user has been added to the role.
      */
-    static addUserToRole(user, role) {
-        return sixGuild.member(user).addRole(role);
+    static async addUserToRole(user, role) {
+        await sixGuild.member(user).addRole(role);
     }
 
     //                                     #  #                     ####                    ###         ##
@@ -982,8 +1002,8 @@ class Discord {
      * @param {Role} role The role to remove the user to.
      * @returns {Promise} A promise that resolves when the user has been removed from the role.
      */
-    static removeUserFromRole(user, role) {
-        return sixGuild.member(user).removeRole(role);
+    static async removeUserFromRole(user, role) {
+        await sixGuild.member(user).removeRole(role);
     }
 
     //                          #          ###                #     ##   #                             ##
@@ -995,14 +1015,14 @@ class Discord {
     /**
      * Creates a text channel.
      * @param {string} name The name of the channel to create.
-     * @returns {Promise} A promise that resolves when the channel has been created.
+     * @returns {Promise<TextChannel>} A promise that resolves with the created channel.
      */
-    static createTextChannel(name) {
-        return sixGuild.createChannel(name, "text").then((channel) => {
-            channel.setParent(streamersCategory);
+    static async createTextChannel(name) {
+        const channel = await sixGuild.createChannel(name, "text");
 
-            return channel;
-        });
+        await channel.setParent(streamersCategory);
+
+        return channel;
     }
 
     //                          #          #  #         #                 ##   #                             ##
@@ -1014,15 +1034,15 @@ class Discord {
     /**
      * Creates a voice channel.
      * @param {string} name The name of the channel to create.
-     * @returns {Promise} A promise that resolves when the channel has been created.
+     * @returns {Promise<VoiceChannel>} A promise that resolves with the created channel.
      */
-    static createVoiceChannel(name) {
-        return sixGuild.createChannel(name, "voice").then((channel) => {
-            channel.edit({bitrate: 64000});
-            channel.setParent(voiceCategory);
+    static async createVoiceChannel(name) {
+        const channel = await sixGuild.createChannel(name, "voice");
 
-            return channel;
-        });
+        await channel.edit({bitrate: 64000});
+        await channel.setParent(voiceCategory);
+
+        return channel;
     }
 
     //  #            ##    #           ##                #                #      #

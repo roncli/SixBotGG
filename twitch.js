@@ -1,6 +1,8 @@
 const TwitchApi = require("twitch-api"),
+
     settings = require("./settings"),
-    twitch = new TwitchApi(settings.twitch);
+
+    twitchApi = new TwitchApi(settings.twitch);
 
 //  #####           #     #            #
 //    #                   #            #
@@ -36,7 +38,7 @@ class Twitch {
         }
 
         return new Promise((resolve, reject) => {
-            twitch.getStreams({channel: channels, limit: 100, "stream_type": "live", offset}, (err, results) => {
+            twitchApi.getStreams({channel: channels, limit: 100, "stream_type": "live", offset}, (err, results) => {
                 if (err || !results || typeof results === "string") {
                     reject(err, results);
                     return;
@@ -61,7 +63,6 @@ class Twitch {
             });
         }).then(() => {
             if (recurse) {
-                console.log(offset);
                 return Twitch.getStreams(channels, offset + 100, streams);
             }
 
@@ -83,7 +84,7 @@ class Twitch {
      */
     static getChannelStream(channel) {
         return new Promise((resolve, reject) => {
-            twitch.getChannelStream(channel, (err, results) => {
+            twitchApi.getChannelStream(channel, (err, results) => {
                 if (err) {
                     reject(err);
                     return;

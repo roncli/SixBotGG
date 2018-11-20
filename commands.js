@@ -546,8 +546,11 @@ class Commands {
                 Discord.createTextChannel(`twitch-${streamer}`).then((channel) => {
                     channel.setTopic(`This channel is for ${user}'s Twitch stream.  Follow ${user} on Twitch at http://twitch.tv/${streamer}.`).then(() => {
                         channel.setPosition(9999).then(() => {
-                            Discord.sortDiscordChannels();
-                            resolve(true);
+                            Discord.sortDiscordChannels().then(() => {
+                                resolve(true);
+                            }).catch((err) => {
+                                reject(new Exception("There was a Discord error while sorting channels.", err));
+                            });
                         }).catch((err) => {
                             reject(new Exception("There was a Discord error while setting the position of the channel.", err));
                         });

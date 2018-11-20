@@ -1,8 +1,10 @@
 const TmiJs = require("tmi.js"),
 
     Commands = require("./commands"),
+    Exception = require("./exception"),
     Log = require("./log"),
     settings = require("./settings"),
+    Warning = require("./warning"),
 
     autoCommandRotation = [
         "facebook",
@@ -58,23 +60,27 @@ class Tmi {
             Log.exception("Disconnected from tmi...", ev);
         });
 
-        tmi.on("message", (channel, userstate, text, self) => {
+        tmi.on("message", async (channel, userstate, text, self) => {
             if (!self && channel === "#sixgaminggg") {
-                Tmi.message(userstate["display-name"], text);
+                await Tmi.message(userstate["display-name"], text);
             }
         });
 
         tmi.on("names", (channel, users) => {
             if (channel === "#sixgaminggg") {
                 users.forEach((username) => {
-                    chatters[username] = "";
+                    if (!chatters[username]) {
+                        chatters[username] = "";
+                    }
                 });
             }
         });
 
         tmi.on("join", (channel, username, self) => {
             if (!self && channel === "#sixgaminggg") {
-                chatters[username] = "";
+                if (!chatters[username]) {
+                    chatters[username] = "";
+                }
             }
         });
 
@@ -104,15 +110,18 @@ class Tmi {
      * Connects to tmi.
      * @returns {void}
      */
-    static connect() {
+    static async connect() {
         Log.log("Connecting to tmi...");
-        tmi.connect().catch((err) => {
+
+        try {
+            await tmi.connect();
+        } catch (err) {
             Log.exception("TMI connection failed.", err);
-        });
+        }
 
         // Setup IRC command rotation.
         clearTimeout(commandRotationTimeout);
-        commandRotationTimeout = setTimeout(() => Tmi.commandRotation(), 600000);
+        commandRotationTimeout = setTimeout(Tmi.commandRotation, 600000);
     }
 
     // # #    ##    ###    ###    ###   ###   ##
@@ -126,24 +135,31 @@ class Tmi {
      * @param {string} text The text of the message.
      * @returns {void}
      */
-    static message(user, text) {
-        const matches = messageParse.exec(text);
+    static async message(user, text) {
+        if (messageParse.test(text)) {
+            const matches = messageParse.exec(text),
+                command = matches[1].toLocaleLowerCase(),
+                args = matches[2];
 
-        commandRotationWait--;
-
-        if (matches) {
-            if (Object.getOwnPropertyNames(Commands.prototype).filter((p) => typeof Commands.prototype[p] === "function" && p !== "constructor").indexOf(matches[1]) !== -1) {
-                Tmi.commands[matches[1]](user, matches[2]).then((success) => {
-                    if (success) {
-                        Log.log(`${user}: ${text}`);
-                    }
-                }).catch((err) => {
-                    if (err.innerError) {
+            if (Object.getOwnPropertyNames(Commands.prototype).filter((p) => typeof Commands.prototype[p] === "function" && p !== "constructor").indexOf(command) !== -1) {
+                let success;
+                try {
+                    await Tmi.commands[command](user, args);
+                } catch (err) {
+                    if (err instanceof Warning) {
+                        Log.warning(`${user}: ${text}\n${err}`);
+                    } else if (err instanceof Exception) {
                         Log.exception(err.message, err.innerError);
                     } else {
-                        Log.warning(err);
+                        Log.exception("Unhandled error found.", err);
                     }
-                });
+
+                    return;
+                }
+
+                if (success) {
+                    Log.log(`${user}: ${text}`);
+                }
             }
         }
     }
@@ -178,14 +194,16 @@ class Tmi {
      * @param {string} hostedChannel The hosted channel.
      * @return {Promise} A promise that resolves when hosting completes.
      */
-    static host(hostingChannel, hostedChannel) {
-        return tmi.host(hostingChannel, hostedChannel).catch((err) => {
+    static async host(hostingChannel, hostedChannel) {
+        try {
+            await tmi.host(hostingChannel, hostedChannel);
+        } catch (err) {
             if (err === "No response from Twitch.") {
                 Log.log(`Host command from ${hostingChannel} to ${hostedChannel} failed due to no response from Twitch.`);
             } else {
                 Log.exception(`Host command from ${hostingChannel} to ${hostedChannel} failed.`, err);
             }
-        });
+        }
     }
 
     //             #                   #
@@ -199,14 +217,16 @@ class Tmi {
      * @param {string} hostingChannel The hosting channel that will end hosting.
      * @return {Promise} A promise that resolves when unhosting completes.
      */
-    static unhost(hostingChannel) {
-        return tmi.unhost(hostingChannel).catch((err) => {
+    static async unhost(hostingChannel) {
+        try {
+            await tmi.unhost(hostingChannel);
+        } catch (err) {
             if (err === "No response from Twitch.") {
                 Log.log(`Unhost command from ${hostingChannel} failed due to no response from Twitch.`);
             } else {
                 Log.exception(`Unhost command from ${hostingChannel} failed.`, err);
             }
-        });
+        }
     }
 
     //  #           #  #           #
@@ -234,11 +254,11 @@ class Tmi {
      * Automatically sends a rotating message to chat every 10 minutes.
      * @returns {void}
      */
-    static commandRotation() {
+    static async commandRotation() {
         if (commandRotationWait <= 0) {
-            Tmi.message("SixBotGG", `!${autoCommandRotation[0]}`);
+            await Tmi.message("SixBotGG", `!${autoCommandRotation[0]}`);
         } else {
-            commandRotationTimeout = setTimeout(() => Tmi.commandRotation(), 600000);
+            commandRotationTimeout = setTimeout(Tmi.commandRotation, 600000);
         }
     }
 
@@ -263,7 +283,7 @@ class Tmi {
         }
 
         clearTimeout(commandRotationTimeout);
-        commandRotationTimeout = setTimeout(() => Tmi.commandRotation(), 600000);
+        commandRotationTimeout = setTimeout(Tmi.commandRotation, 600000);
     }
 }
 
