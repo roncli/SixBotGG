@@ -44,11 +44,14 @@ class Tmi {
     static startup() {
         Tmi.commands = new Commands(Tmi);
 
-        tmi.on("connected", () => {
+        tmi.on("connected", async () => {
             Log.log("Connected to tmi.");
-            tmi.raw("CAP REQ :twitch.tv/membership").catch((err) => {
+
+            try {
+                await tmi.raw("CAP REQ :twitch.tv/membership");
+            } catch (err) {
                 Log.exception("Raw command failed.", err);
-            });
+            }
         });
 
         tmi.on("disconnected", (ev) => {
@@ -155,10 +158,12 @@ class Tmi {
      * @param {string} message The message to be sent.
      * @returns {Promise} A promise that resolves when the message is sent.
      */
-    static queue(message) {
-        return tmi.say("sixgaminggg", message).catch((err) => {
+    static async queue(message) {
+        try {
+            await tmi.say("sixgaminggg", message);
+        } catch (err) {
             Log.exception("Say command failed.", err);
-        });
+        }
     }
 
     // #                   #

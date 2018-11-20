@@ -29,7 +29,7 @@ class Log {
     //              ###
     /**
      * Logs a message.
-     * @param {*} obj The object to log.
+     * @param {object} obj The object to log.
      * @returns {void}
      */
     static log(obj) {
@@ -50,7 +50,7 @@ class Log {
     //                                      ###
     /**
      * Logs a warning.
-     * @param {*} obj The object to log.
+     * @param {object} obj The object to log.
      * @returns {void}
      */
     static warning(obj) {
@@ -72,7 +72,7 @@ class Log {
     /**
      * Logs an exception.
      * @param {string} message The message describing the error.
-     * @param {*} obj The object to log.
+     * @param {object} obj The object to log.
      * @returns {void}
      */
     static exception(message, obj) {
@@ -109,7 +109,7 @@ class Log {
                 const message = {
                     embed: {
                         color: log.type === "log" ? 0x80FF80 : log.type === "warning" ? 0xFFFF00 : log.type === "exception" ? 0xFF0000 : 0x16F6F8,
-                        footer: {icon_url: Discord.icon}, // eslint-disable-line camelcase
+                        footer: {"icon_url": Discord.icon, text: "SixBotGG"},
                         fields: [],
                         timestamp: log.date
                     }
@@ -120,9 +120,16 @@ class Log {
                 }
 
                 if (log.obj) {
+                    const msg = util.inspect(log.obj);
+
+                    if (msg.length > 1024) {
+                        Discord.queue(msg, log.type === "exception" ? errorChannel : logChannel);
+                        return;
+                    }
+
                     message.embed.fields.push({
                         name: "Message",
-                        value: util.inspect(log.obj)
+                        value: msg
                     });
                 }
 

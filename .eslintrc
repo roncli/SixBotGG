@@ -5,8 +5,9 @@
     },
     "parserOptions": {
         "sourceType": "module",
-        "ecmaVersion": 6
+        "ecmaVersion": 7
     },
+    "parser": "babel-eslint",
     "extends": "eslint:all",
     "rules": {
         "array-element-newline": "off",
@@ -79,6 +80,7 @@
         "prefer-promise-reject-errors": [
             "error", {"allowEmptyReject": true}
         ],
+        "require-unicode-regexp": "off",
         "sort-keys": "off",
         "sort-vars": "off",
         "space-before-function-paren": "off",

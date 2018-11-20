@@ -16,6 +16,7 @@ const Db = require("./database"),
 (function startup() {
     Log.log("Starting up...");
 
+    // Set the window title.
     if (process.platform === "win32") {
         process.title = "SixBotGG";
     } else {

@@ -50,6 +50,24 @@ class Commands {
         }
     }
 
+    //          #         #           ##   #                 #
+    //          #                    #  #  #                 #
+    //  ###   ###  # #   ##    ###   #     ###    ##    ##   # #
+    // #  #  #  #  ####   #    #  #  #     #  #  # ##  #     ##
+    // # ##  #  #  #  #   #    #  #  #  #  #  #  ##    #     # #
+    //  # #   ###  #  #  ###   #  #   ##   #  #   ##    ##   #  #
+    /**
+     * Throws an error if the user is not an admin.
+     * @param {Commands} commands The commands object.
+     * @param {string|User} user The user to check.
+     * @returns {void}
+     */
+    static adminCheck(commands, user) {
+        if (!(commands.service.name === "Discord" && Discord.isPodcaster(user) || commands.service.name === "Tmi" && Tmi.isMod(user))) {
+            throw new Error("Admin permission required to perform this command.");
+        }
+    }
+
     //          #         #          ###                      #
     //          #                    #  #
     //  ###   ###  # #   ##    ###   #  #  ###    ##   # #   ##     ###    ##
