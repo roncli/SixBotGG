@@ -1,6 +1,11 @@
 const util = require("util"),
 
-    queue = [];
+    DiscordJs = require("discord.js");
+
+/**
+ * @type {{type: string, date: Date, obj?: Error, message?: string}[]}
+ */
+const queue = [];
 
 /**
  * @type {typeof import("./discord")}
@@ -29,14 +34,14 @@ class Log {
     //              ###
     /**
      * Logs a message.
-     * @param {object} obj The object to log.
+     * @param {string} message The message to log.
      * @returns {void}
      */
-    static log(obj) {
+    static log(message) {
         queue.push({
             type: "log",
             date: new Date(),
-            obj
+            message
         });
         Log.output();
     }
@@ -50,14 +55,14 @@ class Log {
     //                                      ###
     /**
      * Logs a warning.
-     * @param {object} obj The object to log.
+     * @param {string} message The string to log.
      * @returns {void}
      */
-    static warning(obj) {
+    static warning(message) {
         queue.push({
             type: "warning",
             date: new Date(),
-            obj
+            message
         });
         Log.output();
     }
@@ -72,7 +77,7 @@ class Log {
     /**
      * Logs an exception.
      * @param {string} message The message describing the error.
-     * @param {object} obj The object to log.
+     * @param {Error} [obj] The object to log.
      * @returns {void}
      */
     static exception(message, obj) {
@@ -102,38 +107,26 @@ class Log {
         }
 
         if (Discord.isConnected()) {
-            const logChannel = Discord.findChannelByName("sixbotgg-log"),
-                errorChannel = Discord.findChannelByName("sixbotgg-errors");
 
             queue.forEach((log) => {
-                const message = {
-                    embed: {
-                        color: log.type === "log" ? 0x80FF80 : log.type === "warning" ? 0xFFFF00 : 0xFF0000,
-                        footer: {"icon_url": Discord.icon, text: "SixBotGG"},
-                        fields: [],
-                        timestamp: log.date
-                    }
-                };
+                const message = new DiscordJs.RichEmbed({
+                    color: log.type === "log" ? 0x80FF80 : log.type === "warning" ? 0xFFFF00 : 0xFF0000,
+                    fields: [],
+                    timestamp: log.date
+                });
 
                 if (log.message) {
-                    ({message: message.embed.description} = log);
+                    message.setDescription(log.message);
                 }
 
                 if (log.obj) {
-                    const msg = util.inspect(log.obj);
-
-                    if (msg.length > 1024) {
-                        Discord.queue(msg, log.type === "exception" ? errorChannel : logChannel);
-                        return;
-                    }
-
-                    message.embed.fields.push({
+                    message.fields.push({
                         name: "Message",
-                        value: msg
+                        value: util.inspect(log.obj)
                     });
                 }
 
-                Discord.richQueue(message, log.type === "exception" ? errorChannel : logChannel);
+                Discord.richQueue(message, /** @type {DiscordJs.TextChannel} */ (Discord.findChannelByName(log.type === "exception" ? "sixbotgg-errors" : "sixbotgg-log"))); // eslint-disable-line no-extra-parens
             });
 
             queue.splice(0, queue.length);

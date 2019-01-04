@@ -1,3 +1,8 @@
+/**
+ * @typedef {import("discord.js").GuildMember} DiscordJs.GuildMember
+ * @typedef {import("./user")} User
+ */
+
 const Db = require("./database"),
     Exception = require("./exception"),
     pjson = require("./package.json"),
@@ -36,7 +41,7 @@ class Commands {
     //  ##    ##   #  #  ###      ##  #      ###   ##     ##   ##   #
     /**
      * Initializes the class with the service to use.
-     * @param {Discord|Tmi} service The service to use with the commands.
+     * @param {typeof Discord|typeof Tmi} service The service to use with the commands.
      */
     constructor(service) {
         this.service = service;
@@ -50,131 +55,75 @@ class Commands {
         }
     }
 
-    //          #         #           ##   #                 #
-    //          #                    #  #  #                 #
-    //  ###   ###  # #   ##    ###   #     ###    ##    ##   # #
-    // #  #  #  #  ####   #    #  #  #     #  #  # ##  #     ##
-    // # ##  #  #  #  #   #    #  #  #  #  #  #  ##    #     # #
-    //  # #   ###  #  #  ###   #  #   ##   #  #   ##    ##   #  #
+    //       #                 #     #  #                     ###           ##      #         #
+    //       #                 #     #  #                      #           #  #     #
+    //  ##   ###    ##    ##   # #   #  #   ###    ##   ###    #     ###   #  #   ###  # #   ##    ###
+    // #     #  #  # ##  #     ##    #  #  ##     # ##  #  #   #    ##     ####  #  #  ####   #    #  #
+    // #     #  #  ##    #     # #   #  #    ##   ##    #      #      ##   #  #  #  #  #  #   #    #  #
+    //  ##   #  #   ##    ##   #  #   ##   ###     ##   #     ###   ###    #  #   ###  #  #  ###   #  #
     /**
-     * Throws an error if the user is not an admin.
-     * @param {Commands} commands The commands object.
-     * @param {string|User} user The user to check.
+     * Checks that the user is an admin.
+     * @param {typeof Discord|typeof Tmi} service The service.
+     * @param {User} user The user to check.
      * @returns {void}
      */
-    static adminCheck(commands, user) {
-        if (!(commands.service.name === "Discord" && Discord.isPodcaster(user) || commands.service.name === "Tmi" && Tmi.isMod(user))) {
+    static checkUserIsAdmin(service, user) {
+        if (!(service.name === Discord.name && Discord.isPodcaster(user.discord) || service.name === Tmi.name && Tmi.isMod(user.tmi))) {
             throw new Error("Admin permission required to perform this command.");
         }
     }
 
-    //          #         #          ###                      #
-    //          #                    #  #
-    //  ###   ###  # #   ##    ###   #  #  ###    ##   # #   ##     ###    ##
-    // #  #  #  #  ####   #    #  #  ###   #  #  #  #  ####   #    ##     # ##
-    // # ##  #  #  #  #   #    #  #  #     #     #  #  #  #   #      ##   ##
-    //  # #   ###  #  #  ###   #  #  #     #      ##   #  #  ###   ###     ##
+    //       #                 #     #  #                                        ###          ####                    ###    #                                #
+    //       #                 #     ####                                         #           #                       #  #                                    #
+    //  ##   ###    ##    ##   # #   ####   ##    ###    ###    ###   ###   ##    #     ###   ###   ###    ##   # #   #  #  ##     ###    ##    ##   ###    ###
+    // #     #  #  # ##  #     ##    #  #  # ##  ##     ##     #  #  #  #  # ##   #    ##     #     #  #  #  #  ####  #  #   #    ##     #     #  #  #  #  #  #
+    // #     #  #  ##    #     # #   #  #  ##      ##     ##   # ##   ##   ##     #      ##   #     #     #  #  #  #  #  #   #      ##   #     #  #  #     #  #
+    //  ##   #  #   ##    ##   #  #  #  #   ##   ###    ###     # #  #      ##   ###   ###    #     #      ##   #  #  ###   ###   ###     ##    ##   #      ###
+    //                                                                ###
     /**
-     * A promise that only proceeds if the user is an admin.
-     * @param {Commands} commands The commands object.
-     * @param {string|User} user The user to check.
-     * @param {function} fx The function to run with the promise.
-     * @returns {Promise} A promise that resolves if the user is an admin.
+     * Checks that the message is from Discord.
+     * @param {typeof Discord|typeof Tmi} service The service.
+     * @returns {void}
      */
-    static adminPromise(commands, user, fx) {
-        return new Promise((resolve, reject) => {
-            if (!(commands.service.name === "Discord" && Discord.isPodcaster(user) || commands.service.name === "Tmi" && Tmi.isMod(user))) {
-                reject(new Error("Admin permission required to perform this command."));
-                return;
-            }
-
-            if (fx) {
-                new Promise(fx).then(resolve).catch(reject);
-            } else {
-                resolve();
-            }
-        });
+    static checkMessageIsFromDiscord(service) {
+        if (service.name !== Discord.name) {
+            throw new Error("This command is for Discord only.");
+        }
     }
 
-    //    #   #                                #  ###                      #
-    //    #                                    #  #  #
-    //  ###  ##     ###    ##    ##   ###    ###  #  #  ###    ##   # #   ##     ###    ##
-    // #  #   #    ##     #     #  #  #  #  #  #  ###   #  #  #  #  ####   #    ##     # ##
-    // #  #   #      ##   #     #  #  #     #  #  #     #     #  #  #  #   #      ##   ##
-    //  ###  ###   ###     ##    ##   #      ###  #     #      ##   #  #  ###   ###     ##
-    /**
-     * A promise that only proceeds if the user is on Discord.
-     * @param {Commands} commands The commands object.
-     * @param {function} fx The function to run with the promise.
-     * @returns {Promise} A promise that resolves if the user is on Discord.
-     */
-    static discordPromise(commands, fx) {
-        return new Promise((resolve, reject) => {
-            if (commands.service.name !== "Discord") {
-                reject(new Error("This command is for Discord only."));
-                return;
-            }
-
-            if (fx) {
-                new Promise(fx).then(resolve).catch(reject);
-            } else {
-                resolve();
-            }
-        });
-    }
-
-    //                               ###                      #
-    //                               #  #
-    //  ##   #  #  ###    ##   ###   #  #  ###    ##   # #   ##     ###    ##
-    // #  #  #  #  #  #  # ##  #  #  ###   #  #  #  #  ####   #    ##     # ##
-    // #  #  ####  #  #  ##    #     #     #     #  #  #  #   #      ##   ##
-    //  ##   ####  #  #   ##   #     #     #      ##   #  #  ###   ###     ##
+    //       #                 #     #  #                     ###           ##
+    //       #                 #     #  #                      #           #  #
+    //  ##   ###    ##    ##   # #   #  #   ###    ##   ###    #     ###   #  #  #  #  ###    ##   ###
+    // #     #  #  # ##  #     ##    #  #  ##     # ##  #  #   #    ##     #  #  #  #  #  #  # ##  #  #
+    // #     #  #  ##    #     # #   #  #    ##   ##    #      #      ##   #  #  ####  #  #  ##    #
+    //  ##   #  #   ##    ##   #  #   ##   ###     ##   #     ###   ###     ##   ####  #  #   ##   #
     /**
      * A promise that only proceeds if the user is the owner.
      * @param {User} user The user to check.
-     * @param {function} fx The function to run with the promise.
-     * @returns {Promise} A promise that resolves if the user is the owner.
+     * @returns {void}
      */
-    static ownerPromise(user, fx) {
-        return new Promise((resolve, reject) => {
-            if (typeof user === "string" || !Discord.isOwner(user)) {
-                reject(new Error("Owner permission required to perform this command."));
-                return;
-            }
-
-            if (fx) {
-                new Promise(fx).then(resolve).catch(reject);
-            } else {
-                resolve();
-            }
-        });
+    static checkUserIsOwner(user) {
+        if (!user.discord || !Discord.isOwner(user.discord)) {
+            throw new Error("Owner permission required to perform this command.");
+        }
     }
 
-    //  #           #    ###                      #
-    //  #                #  #
-    // ###   # #   ##    #  #  ###    ##   # #   ##     ###    ##
-    //  #    ####   #    ###   #  #  #  #  ####   #    ##     # ##
-    //  #    #  #   #    #     #     #  #  #  #   #      ##   ##
-    //   ##  #  #  ###   #     #      ##   #  #  ###   ###     ##
+    //       #                 #     #  #                                        ###          ####                    ###          #
+    //       #                 #     ####                                         #           #                        #
+    //  ##   ###    ##    ##   # #   ####   ##    ###    ###    ###   ###   ##    #     ###   ###   ###    ##   # #    #    # #   ##
+    // #     #  #  # ##  #     ##    #  #  # ##  ##     ##     #  #  #  #  # ##   #    ##     #     #  #  #  #  ####   #    ####   #
+    // #     #  #  ##    #     # #   #  #  ##      ##     ##   # ##   ##   ##     #      ##   #     #     #  #  #  #   #    #  #   #
+    //  ##   #  #   ##    ##   #  #  #  #   ##   ###    ###     # #  #      ##   ###   ###    #     #      ##   #  #   #    #  #  ###
+    //                                                                ###
     /**
      * A promise that only proceeds if the user is on tmi.
-     * @param {Commands} commands The commands object.
-     * @param {function} fx The function to run with the promise
-     * @returns {Promise} A promise that resolves if the user is on tmi.
+     * @param {typeof Discord|typeof Tmi} service The service.
+     * @returns {void}
      */
-    static tmiPromise(commands, fx) {
-        return new Promise((resolve, reject) => {
-            if (commands.service.name !== "Tmi") {
-                reject(new Error("This command is for Twitch chat only."));
-                return;
-            }
-
-            if (fx) {
-                new Promise(fx).then(resolve).catch(reject);
-            } else {
-                resolve();
-            }
-        });
+    static checkMessageIsFromTmi(service) {
+        if (service.name !== Tmi.name) {
+            throw new Error("This command is for Twitch chat only.");
+        }
     }
 
     //   #                     #                 #
@@ -185,23 +134,21 @@ class Commands {
     //  #     # #   ##    ##   ###    ##    ##   #  #
     /**
      * Replies with Six Gaming's Facebook URL.  Tmi-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    facebook(user, message) {
-        const commands = this;
+    async facebook(user, message) {
+        Commands.checkMessageIsFromTmi(this.service);
 
-        return Commands.tmiPromise(commands, (resolve) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            commands.service.queue("Check out Six Gaming on Facebook at http://fb.me/SixGamingGG");
-            Tmi.rotateCommand("facebook");
-            resolve(true);
-        });
+        await this.service.queue("Check out Six Gaming on Facebook at http://fb.me/SixGamingGG");
+        Tmi.rotateCommand("facebook");
+
+        return true;
     }
 
     //  #           #     #     #
@@ -212,23 +159,21 @@ class Commands {
     //   ##  ####  ###     ##    ##   ##   #
     /**
      * Replies with Six Gaming's Twitter URL.  Tmi-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    twitter(user, message) {
-        const commands = this;
+    async twitter(user, message) {
+        Commands.checkMessageIsFromTmi(this.service);
 
-        return Commands.tmiPromise(commands, (resolve) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            commands.service.queue("Follow Six Gaming on Twitter at http://twitter.com/SixGamingGG");
-            Tmi.rotateCommand("twitter");
-            resolve(true);
-        });
+        await this.service.queue("Follow Six Gaming on Twitter at http://twitter.com/SixGamingGG");
+        Tmi.rotateCommand("twitter");
+
+        return true;
     }
 
     //                    #          #
@@ -240,23 +185,21 @@ class Commands {
     //  #
     /**
      * Replies with Six Gaming's YouTube URL.  Tmi-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    youtube(user, message) {
-        const commands = this;
+    async youtube(user, message) {
+        Commands.checkMessageIsFromTmi(this.service);
 
-        return Commands.tmiPromise(commands, (resolve) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            commands.service.queue("Visit Six Gaming's YouTube page for a complete archive of our podcast at http://ronc.li/six-youtube");
-            Tmi.rotateCommand("youtube");
-            resolve(true);
-        });
+        await this.service.queue("Visit Six Gaming's YouTube page for a complete archive of our podcast at http://ronc.li/six-youtube");
+        Tmi.rotateCommand("youtube");
+
+        return true;
     }
 
     //  #     #
@@ -267,23 +210,21 @@ class Commands {
     // ###     ##   ###  #  #   ##   ###
     /**
      * Replies with Six Gaming's iTunes URL.  Tmi-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    itunes(user, message) {
-        const commands = this;
+    async itunes(user, message) {
+        Commands.checkMessageIsFromTmi(this.service);
 
-        return Commands.tmiPromise(commands, (resolve) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            commands.service.queue("Subscribe to Six Gaming's video podcast on iTunes at http://ronc.li/six-itunes");
-            Tmi.rotateCommand("itunes");
-            resolve(true);
-        });
+        await this.service.queue("Subscribe to Six Gaming's video podcast on iTunes at http://ronc.li/six-itunes");
+        Tmi.rotateCommand("itunes");
+
+        return true;
     }
 
     //    #   #                                #
@@ -294,23 +235,21 @@ class Commands {
     //  ###  ###   ###     ##    ##   #      ###
     /**
      * Replies with Six Gaming's Discord URL.  Tmi-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    discord(user, message) {
-        const commands = this;
+    async discord(user, message) {
+        Commands.checkMessageIsFromTmi(this.service);
 
-        return Commands.tmiPromise(commands, (resolve) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            commands.service.queue("Join the Six Gaming Discord server for all the memes!  We are a community of gamers that enjoy playing together.  Join at http://ronc.li/six-discord");
-            Tmi.rotateCommand("discord");
-            resolve(true);
-        });
+        await this.service.queue("Join the Six Gaming Discord server for all the memes!  We are a community of gamers that enjoy playing together.  Join at http://ronc.li/six-discord");
+        Tmi.rotateCommand("discord");
+
+        return true;
     }
 
     //             #             #     #
@@ -321,23 +260,21 @@ class Commands {
     // ####   ##   ###   ###    ###     ##   ##
     /**
      * Replies with Six Gaming's Website URL.  Tmi-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    website(user, message) {
-        const commands = this;
+    async website(user, message) {
+        Commands.checkMessageIsFromTmi(this.service);
 
-        return Commands.tmiPromise(commands, (resolve) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            commands.service.queue("We have a website?  Yes, we do!  Visit us at http://six.gg for everything Six Gaming!");
-            Tmi.rotateCommand("website");
-            resolve(true);
-        });
+        await this.service.queue("We have a website?  Yes, we do!  Visit us at http://six.gg for everything Six Gaming!");
+        Tmi.rotateCommand("website");
+
+        return true;
     }
 
     //                           #
@@ -348,22 +285,18 @@ class Commands {
     //  #     ##   #     ###    ###    ##   #  #
     /**
      * Replies with the current version of the bot.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    version(user, message) {
-        const commands = this;
+    async version(user, message) {
+        if (message) {
+            return false;
+        }
 
-        return new Promise((resolve) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        await this.service.queue(`SixBotGG by roncli, Version ${pjson.version}`);
 
-            commands.service.queue(`SixBotGG by roncli, Version ${pjson.version}`);
-            resolve(true);
-        });
+        return true;
     }
 
     // #           ##
@@ -375,22 +308,18 @@ class Commands {
     //                   #
     /**
      * Replies with a URL to the bot's help page.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    help(user, message) {
-        const commands = this;
+    async help(user, message) {
+        if (message) {
+            return false;
+        }
 
-        return new Promise((resolve) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        await this.service.queue(`${user}, see the documentation at http://six.gg/about.`);
 
-            commands.service.queue(`${user}, see the documentation at http://six.gg/about.`);
-            resolve(true);
-        });
+        return true;
     }
 
     // #                   #
@@ -401,81 +330,77 @@ class Commands {
     // #  #   ##   ###      ##
     /**
      * Hosts a channel.  Admin-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    host(user, message) {
-        const commands = this;
+    async host(user, message) {
+        Commands.checkUserIsAdmin(this.service, user);
 
-        return Commands.adminPromise(commands, user, (resolve, reject) => {
-            if (!message) {
-                resolve(false);
-                return;
-            }
+        if (!message) {
+            return false;
+        }
 
-            if (Discord.isSixGamingLive()) {
-                commands.service.queue(`Sorry, ${user}, but Six Gaming is live right now!`);
-                reject(new Error("Cannot host a channel while Six Gaming is live."));
-                return;
-            }
+        if (Discord.isSixGamingLive()) {
+            await this.service.queue(`Sorry, ${user}, but Six Gaming is live right now!`);
+            throw new Error("Cannot host a channel while Six Gaming is live.");
+        }
 
-            if (Discord.canHost()) {
-                commands.service.queue(`Sorry, ${user}, but I can only host 3 times within 30 minutes.`);
-                reject(new Error("Cannot host a channel when 3 channels have been hosted in the past 30 minutes."));
-                return;
-            }
+        if (Discord.canHost()) {
+            await this.service.queue(`Sorry, ${user}, but I can only host 3 times within 30 minutes.`);
+            throw new Error("Cannot host a channel when 3 channels have been hosted in the past 30 minutes.");
+        }
 
-            message = message.toLowerCase();
+        message = message.toLowerCase();
 
-            if (Discord.currentHost === message) {
-                commands.service.queue(`Sorry, ${user}, but I am already hosting ${message}.`);
-                reject(new Error("Cannot host the currently hosted channel."));
-                return;
-            }
+        if (Discord.currentHost === message) {
+            await this.service.queue(`Sorry, ${user}, but I am already hosting ${message}.`);
+            throw new Error("Cannot host the currently hosted channel.");
+        }
 
-            Twitch.getChannelStream(message).then((results) => {
-                Discord.manualHosting = results && results.stream;
+        let results;
+        try {
+            results = await Twitch.getChannelStream(message);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Twitch API error while getting stream data.", err);
+        }
 
-                if (Discord.manualHosting) {
-                    Tmi.host("sixgaminggg", message).then(() => {
-                        Discord.currentHost = message;
+        Discord.manualHosting = results && results.stream;
 
-                        Tmi.queue(`Now hosting ${Discord.currentHost}.  Check out their stream at http://twitch.tv/${Discord.currentHost}!`);
-                        Discord.announceStream(results.stream);
-                        resolve(true);
-                    }).catch((err) => {
-                        if (err === "bad_host_hosting") {
-                            commands.service.queue(`Sorry, ${user}, but I am already hosting ${message}.`);
-                            reject(new Error("Cannot host the currently hosted channel."));
-                            return;
-                        }
-
-                        if (err === "bad_host_error") {
-                            commands.service.queue(`Sorry, ${user}, but Twitch is having issues.  Try hosting again later.`);
-                            reject(new Error("Twitch error while attempting to host."));
-                            return;
-                        }
-
-                        commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                        reject(new Exception("There was a Twitch chat error while attempting to host a channel.", err));
-                    });
-
-                    return;
+        if (Discord.manualHosting) {
+            try {
+                await Tmi.host("sixgaminggg", message);
+            } catch (err) {
+                if (err === "bad_host_hosting") {
+                    await this.service.queue(`Sorry, ${user}, but I am already hosting ${message}.`);
+                    throw new Error("Cannot host the currently hosted channel.");
                 }
 
-                if (results) {
-                    commands.service.queue(`Sorry, ${user}, but ${message} is not live right now.`);
-                    reject(new Error("Cannot host a channel that is not live."));
-                } else {
-                    commands.service.queue(`Sorry, ${user}, but ${message} is not a valid Twitch streamer.`);
-                    reject(new Error("Channel does not exist."));
+                if (err === "bad_host_error") {
+                    await this.service.queue(`Sorry, ${user}, but Twitch is having issues.  Try hosting again later.`);
+                    throw new Error("Twitch error while attempting to host.");
                 }
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a Twitch API error while getting stream data.", err));
-            });
-        });
+
+                await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+                throw new Exception("There was a Twitch chat error while attempting to host a channel.", err);
+            }
+
+            Discord.currentHost = message;
+
+            await Tmi.queue(`Now hosting ${Discord.currentHost}.  Check out their stream at http://twitch.tv/${Discord.currentHost}!`);
+            Discord.announceStream(results.stream);
+
+            return true;
+        }
+
+        if (results) {
+            await this.service.queue(`Sorry, ${user}, but ${message} is not live right now.`);
+            throw new Error("Cannot host a channel that is not live.");
+        } else {
+            await this.service.queue(`Sorry, ${user}, but ${message} is not a valid Twitch streamer.`);
+            throw new Error("Channel does not exist.");
+        }
     }
 
     //             #                   #
@@ -486,31 +411,28 @@ class Commands {
     //  ###  #  #  #  #   ##   ###      ##
     /**
      * Unhosts a channel.  Admin-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    unhost(user, message) {
-        const commands = this;
+    async unhost(user, message) {
+        Commands.checkUserIsAdmin(this.service, user);
 
-        return Commands.adminPromise(commands, user, (resolve, reject) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            if (!Discord.currentHost) {
-                commands.service.queue(`Sorry, ${user}, but you can't stop hosting when the channel isn't hosting anyone.`);
-                reject(new Error("Not currently hosting a channel."));
-                return;
-            }
+        if (!Discord.currentHost) {
+            await this.service.queue(`Sorry, ${user}, but you can't stop hosting when the channel isn't hosting anyone.`);
+            throw new Error("Not currently hosting a channel.");
+        }
 
-            Tmi.unhost("sixgaminggg").catch(() => {});
-            commands.service.queue("Exiting host mode.");
-            Discord.manualHosting = false;
-            Discord.currentHost = "";
-            resolve(true);
-        });
+        Tmi.unhost("sixgaminggg").catch(() => {});
+        await this.service.queue("Exiting host mode.");
+        Discord.manualHosting = false;
+        Discord.currentHost = "";
+
+        return true;
     }
 
     //          #     #                    #                             ##
@@ -522,53 +444,61 @@ class Commands {
     //                          #
     /**
      * Adds a Discord text channel for a Twitch user.  Discord-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    addmychannel(user, message) {
-        const commands = this;
+    async addmychannel(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
 
-        return Commands.discordPromise(commands, (resolve, reject) => {
-            if (message) {
-                commands.service.queue(`Sorry, ${user}, but that is not a valid command.  Did you mean to \`!addchannel <channel name>\` to create a voice channel?`);
-                resolve(false);
-                return;
-            }
+        if (message) {
+            await this.service.queue(`Sorry, ${user}, but that is not a valid command.  Did you mean to \`!addchannel <channel name>\` to create a voice channel?`);
+            return false;
+        }
 
-            Db.getStreamerByDiscord(user.id).then((streamer) => {
-                if (!streamer) {
-                    commands.service.queue(`Sorry, ${user}, but you are not currently registered as a streamer.  Use \`!addtwitch\` to add your channel.`);
-                    reject(new Error("User is not a streamer."));
-                    return;
-                }
+        let streamer;
+        try {
+            streamer = await Db.getStreamerByDiscord(user.discord.id);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a database error while checking to see if the user is a streamer.", err);
+        }
 
-                Discord.createTextChannel(`twitch-${streamer}`).then((channel) => {
-                    channel.setTopic(`This channel is for ${user}'s Twitch stream.  Follow ${user} on Twitch at http://twitch.tv/${streamer}.`).then(() => {
-                        channel.setPosition(9999).then(() => {
-                            Discord.sortDiscordChannels().then(() => {
-                                resolve(true);
-                            }).catch((err) => {
-                                reject(new Exception("There was a Discord error while sorting channels.", err));
-                            });
-                        }).catch((err) => {
-                            reject(new Exception("There was a Discord error while setting the position of the channel.", err));
-                        });
+        if (!streamer) {
+            await this.service.queue(`Sorry, ${user}, but you are not currently registered as a streamer.  To get registered, connect your Discord account to Twitch and then go live on Twitch.  The bot will automatically register you as a streamer when it sees you live!`);
+            throw new Error("User is not a streamer.");
+        }
 
-                        commands.service.queue(`${user}, your text channel has now been created at ${channel}.`);
-                    }).catch((err) => {
-                        commands.service.queue(`Sorry, ${user}, but there was a problem creating your channel.  Does it already exist?`);
-                        reject(new Exception("There was a Discord error while setting the channel's topic.", err));
-                    });
-                }).catch((err) => {
-                    commands.service.queue(`Sorry, ${user}, but there was a problem creating your channel.  Does it already exist?`);
-                    reject(new Exception("There was a Discord error while creating a text channel.", err));
-                });
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a database error while checking to see if the user is a streamer.", err));
-            });
-        });
+        let channel;
+        try {
+            channel = await Discord.createTextChannel(`twitch-${streamer}`);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but there was a problem creating your channel.  Does it already exist?`);
+            throw new Exception("There was a Discord error while creating a text channel.", err);
+        }
+
+        try {
+            await channel.setTopic(`This channel is for ${user}'s Twitch stream.  Follow ${user} on Twitch at http://twitch.tv/${streamer}.`);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but there was a problem creating your channel.  Does it already exist?`);
+            throw new Exception("There was a Discord error while setting the channel's topic.", err);
+        }
+
+        await this.service.queue(`${user}, your text channel has now been created at ${channel}.`);
+
+        try {
+            await channel.setPosition(9999);
+        } catch (err) {
+            throw new Exception("There was a Discord error while setting the position of the channel.", err);
+        }
+
+        try {
+            await Discord.sortDiscordChannels();
+        } catch (err) {
+            throw new Exception("There was a Discord error while sorting channels.", err);
+        }
+
+        return true;
     }
 
     //                                                       #                             ##
@@ -580,42 +510,45 @@ class Commands {
     //                                            #
     /**
      * Removes a Discord channel for a Twitch user.  Discord-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    removemychannel(user, message) {
-        const commands = this;
+    async removemychannel(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
 
-        return Commands.discordPromise(commands, (resolve, reject) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            Db.getStreamerByDiscord(user.id).then((streamer) => {
-                if (!streamer) {
-                    commands.service.queue(`Sorry, ${user}, but you are not currently registered as a streamer.  Use \`!addtwitch\` to add your channel.`);
-                    reject(new Error("User is not a streamer."));
-                    return;
-                }
+        let streamer;
+        try {
+            streamer = await Db.getStreamerByDiscord(user.discord.id);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a database error while checking to see if the user is a streamer.", err);
+        }
 
-                const channel = Discord.findChannelByName(`twitch-${streamer}`);
+        if (!streamer) {
+            await this.service.queue(`Sorry, ${user}, but you are not currently registered as a streamer.  Use \`!addtwitch\` to add your channel.`);
+            throw new Error("User is not a streamer.");
+        }
 
-                if (channel) {
-                    channel.delete();
-                    commands.service.queue(`${user}, your text channel has been removed.  You can always recreate it using \`!addmychannel\`.`);
-                    resolve(true);
-                    return;
-                }
+        const channel = Discord.findChannelByName(`twitch-${streamer}`);
+        if (!channel) {
+            await this.service.queue(`Sorry, ${user}, but there was a problem removing your text channel.  Are you sure you have one?`);
+            throw new Error("Channel does not exist.");
+        }
 
-                commands.service.queue(`Sorry, ${user}, but there was a problem removing your text channel.  Are you sure you have one?`);
-                reject(new Error("Channel does not exist."));
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a database error while checking to see if the user is a streamer.", err));
-            });
-        });
+        try {
+            channel.delete();
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Discord error while deleting a channel.", err);
+        }
+
+        await this.service.queue(`${user}, your text channel has been removed.  You can always recreate it using \`!addmychannel\`.`);
+        return true;
     }
 
     //          #     #          #
@@ -626,45 +559,51 @@ class Commands {
     //  # #   ###   ###  ###      ##  #      ##    # #  #  #   ##   #
     /**
      * Adds a streamer to the auto hosting rotation.  Discord- and admin-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    addstreamer(user, message) {
-        const commands = this;
+    async addstreamer(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
+        Commands.checkUserIsAdmin(this.service, user);
 
-        return Commands.discordPromise(commands).then(() => Commands.adminPromise(commands, user, (resolve, reject) => {
-            Twitch.getChannelStream(message).then((results) => {
-                if (!results) {
-                    commands.service.queue(`Sorry, ${user}, but ${message} is not a valid Twitch streamer.`);
-                    reject(new Error("Invalid Twitch streamer name."));
-                    return;
-                }
+        let results;
+        try {
+            results = Twitch.getChannelStream(message);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Twitch API error while checking if the streamer exists.", err);
+        }
 
-                Db.hostExistsByName(message).then((exists) => {
-                    if (exists) {
-                        commands.service.queue(`Sorry, ${user}, but ${message} has already been added as a streamer to be hosted.`);
-                        reject(new Error("Streamer is already a hosted streamer."));
-                        return;
-                    }
+        if (!results) {
+            await this.service.queue(`Sorry, ${user}, but ${message} is not a valid Twitch streamer.`);
+            throw new Error("Invalid Twitch streamer name.");
+        }
 
-                    Db.addHost(message).then(() => {
-                        Discord.addHost(message);
-                        commands.service.queue(`${user}, you have successfully added ${message} as a streamer to be hosted.`);
-                        resolve(true);
-                    }).catch((err) => {
-                        commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                        reject(new Exception("There was a database error while adding a hosted streamer.", err));
-                    });
-                }).catch((err) => {
-                    commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                    reject(new Exception("There was a database error while checking if the streamer is a hosted streamer.", err));
-                });
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a Twitch API error while checking if the streamer exists.", err));
-            });
-        }));
+        let exists;
+        try {
+            exists = Db.hostExistsByName(message);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a database error while checking if the streamer is a hosted streamer.", err);
+        }
+
+        if (exists) {
+            await this.service.queue(`Sorry, ${user}, but ${message} has already been added as a streamer to be hosted.`);
+            throw new Error("Streamer is already a hosted streamer.");
+        }
+
+        try {
+            await Db.addHost(message);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a database error while adding a hosted streamer.", err);
+        }
+
+        Discord.addHost(message);
+        await this.service.queue(`${user}, you have successfully added ${message} as a streamer to be hosted.`);
+
+        return true;
     }
 
     //                                             #
@@ -675,39 +614,42 @@ class Commands {
     // #      ##   #  #   ##    #     ##   ###      ##  #      ##    # #  #  #   ##   #
     /**
      * Removes a streamer from the auto hosting rotation.  Discord- and admin-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    removestreamer(user, message) {
-        const commands = this;
+    async removestreamer(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
+        Commands.checkUserIsAdmin(this.service, user);
 
-        return Commands.discordPromise(commands).then(() => Commands.adminPromise(commands, user, (resolve, reject) => {
-            if (!message) {
-                resolve(false);
-                return;
-            }
+        if (!message) {
+            return false;
+        }
 
-            Db.getHostIdByName(message).then((id) => {
-                if (!id) {
-                    commands.service.queue(`Sorry, ${user}, but ${message} is not currently a hosted streamer.`);
-                    reject(new Error("Stremaer is not a hosted streamer."));
-                    return;
-                }
+        let id;
+        try {
+            id = await Db.getHostIdByName(message);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a database error while checking if the streamer is a hosted streamer.", err);
+        }
 
-                Db.deleteHostById(id).then(() => {
-                    Discord.removeHost(message);
-                    commands.service.queue(`${user}, ${message} has been removed as a hosted streamer.`);
-                    resolve(true);
-                }).catch((err) => {
-                    commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                    reject(new Exception("There was a database error while removing a hosted streamer.", err));
-                });
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a database error while checking if the streamer is a hosted streamer.", err));
-            });
-        }));
+        if (!id) {
+            await this.service.queue(`Sorry, ${user}, but ${message} is not currently a hosted streamer.`);
+            throw new Error("Stremaer is not a hosted streamer.");
+        }
+
+        try {
+            await Db.deleteHostById(id);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a database error while removing a hosted streamer.", err);
+        }
+
+        Discord.removeHost(message);
+        await this.service.queue(`${user}, ${message} has been removed as a hosted streamer.`);
+
+        return true;
     }
 
     //          #     #        #                             ##
@@ -718,48 +660,47 @@ class Commands {
     //  # #   ###   ###   ##   #  #   # #  #  #  #  #   ##   ###
     /**
      * Adds a voice channel to Discord.  Discord-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    addchannel(user, message) {
-        const commands = this;
+    async addchannel(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
 
-        return Commands.discordPromise(commands, (resolve, reject) => {
-            if (!message) {
-                commands.service.queue(`Sorry, ${user}, but that is not a valid command.  Did you mean to \`!addmychannel\` to create your own text channel for your Twitch community?`);
-                resolve(false);
-                return;
-            }
+        if (!message) {
+            await this.service.queue(`Sorry, ${user}, but that is not a valid command.  Did you mean to \`!addmychannel\` to create your own text channel for your Twitch community?`);
+            return false;
+        }
 
-            if (userCreatedChannels[user.id]) {
-                commands.service.queue(`Sorry, ${user}, but you can only create a voice channel once every five minutes.`);
-                reject(new Error("Can only create a voice channel once every 5 minutes."));
-                return;
-            }
+        if (userCreatedChannels[user.discord.id]) {
+            await this.service.queue(`Sorry, ${user}, but you can only create a voice channel once every five minutes.`);
+            throw new Error("Can only create a voice channel once every 5 minutes.");
+        }
 
-            if (Discord.findChannelByName(message)) {
-                commands.service.queue(`Sorry, ${user}, but ${message} already exists as a voice channel.`);
-                reject(new Error("Channel already exists."));
-                return;
-            }
+        if (Discord.findChannelByName(message)) {
+            await this.service.queue(`Sorry, ${user}, but ${message} already exists as a voice channel.`);
+            throw new Error("Channel already exists.");
+        }
 
-            Discord.createVoiceChannel(message).then((channel) => {
-                if (channel.members.size === 0) {
-                    Discord.markEmptyVoiceChannel(channel);
-                }
+        let channel;
+        try {
+            channel = await Discord.createVoiceChannel(message);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Discord error while attempting to create a voice channel.", err);
+        }
 
-                userCreatedChannels[user.id] = setTimeout(() => {
-                    delete userCreatedChannels[user.id];
-                }, 300000);
+        if (channel.members.size === 0) {
+            Discord.markEmptyVoiceChannel(channel);
+        }
 
-                commands.service.queue(`${user}, the voice channel ${message} has been created.  It will be automatically deleted after being empty for 5 minutes.`);
-                resolve(true);
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a Discord error while attempting to create a voice channel.", err));
-            });
-        });
+        userCreatedChannels[user.discord.id] = setTimeout(() => {
+            delete userCreatedChannels[user.discord.id];
+        }, 300000);
+
+        await this.service.queue(`${user}, the voice channel ${message} has been created.  It will be automatically deleted after being empty for 5 minutes.`);
+
+        return true;
     }
 
     //          #     #
@@ -771,53 +712,53 @@ class Commands {
     //                    ###
     /**
      * Adds a game for notifications.  Discord- and admin-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    addgame(user, message) {
-        const commands = this;
+    async addgame(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
+        Commands.checkUserIsAdmin(this.service, user);
 
-        return Commands.discordPromise(commands).then(() => Commands.adminPromise(commands, user, (resolve, reject) => {
-            const matches = addGameParse.exec(message);
+        if (!addGameParse.test(message)) {
+            return false;
+        }
 
-            if (!matches) {
-                resolve(false);
-                return;
-            }
+        const {1: short, 2: game} = addGameParse.exec(message);
+        if (Discord.findRoleByName(short)) {
+            await this.service.queue(`Sorry, ${user}, but the role for game ${short} has already been created.`);
+            throw new Error("Game has already been added.");
+        }
 
-            const short = matches[1].toLowerCase(),
-                game = matches[2];
+        try {
+            await Db.addGame(game, short);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a database error while adding the game to the table.", err);
+        }
 
-            if (Discord.findRoleByName(short)) {
-                commands.service.queue(`Sorry, ${user}, but the role for game ${short} has already been created.`);
-                reject(new Error("Game has already been added."));
-                return;
-            }
-
-            Db.addGame(game, short).then(() => {
-                Discord.createRole({
-                    name: short,
-                    color: 0xFF0000,
-                    hoist: false,
-                    mentionable: true
-                }).then((role) => {
-                    Discord.addUserToRole(user, role).then(() => {
-                        commands.service.queue(`${user}, ${role} has been setup as a mentionable role with you as the first member!  You may also discuss the game in #games.  Anyone may join this role to be notified by entering \`!notify ${short}\`.`);
-                        resolve(true);
-                    }).catch((err) => {
-                        commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                        reject(new Exception("There was a Discord error while adding the user to the new role.", err));
-                    });
-                }).catch((err) => {
-                    commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                    reject(new Exception("There was a Discord error while creating the game's role.", err));
-                });
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a database error while adding the game to the table.", err));
+        let role;
+        try {
+            role = await Discord.createRole({
+                name: short,
+                color: 0xFF0000,
+                hoist: false,
+                mentionable: true
             });
-        }));
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Discord error while creating the game's role.", err);
+        }
+
+        try {
+            await Discord.addUserToRole(user.discord, role);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Discord error while adding the user to the new role.", err);
+        }
+
+        await this.service.queue(`${user}, ${role} has been setup as a mentionable role with you as the first member!  You may also discuss the game in #games.  Anyone may join this role to be notified by entering \`!notify ${short}\`.`);
+        return true;
     }
 
     // ###    ##   # #    ##   # #    ##    ###   ###  # #    ##
@@ -827,35 +768,40 @@ class Commands {
     //                                      ###
     /**
      * Removes a game from notifications.  Discord- and owner-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    removegame(user, message) {
-        const commands = this;
+    async removegame(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
+        Commands.checkUserIsOwner(user);
 
-        return Commands.discordPromise(commands).then(() => Commands.ownerPromise(user, (resolve, reject) => {
-            if (!message) {
-                resolve(false);
-                return;
-            }
+        if (!message) {
+            return false;
+        }
 
-            message = message.toLowerCase();
+        message = message.toLowerCase();
 
-            const role = Discord.findRoleByName(message);
+        const role = Discord.findRoleByName(message);
 
-            if (role) {
+        if (role) {
+            try {
                 role.delete();
+            } catch (err) {
+                await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+                throw new Exception("There was a Discord error while removing a role.", err);
             }
+        }
 
-            Db.deleteGameByCode(message).then(() => {
-                commands.service.queue(`${user}, the game ${message} has been removed.`);
-                resolve(true);
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a database error while removing a game from the table.", err));
-            });
-        }));
+        try {
+            await Db.deleteGameByCode(message);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a database error while removing a game from the table.", err);
+        }
+
+        await this.service.queue(`${user}, the game ${message} has been removed.`);
+        return true;
     }
 
     //  ###   ###  # #    ##    ###
@@ -865,39 +811,38 @@ class Commands {
     //  ###
     /**
      * Whispers a list of games to be notified for to a user.  Discord-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    games(user, message) {
-        const commands = this;
+    async games(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
 
-        return Commands.discordPromise(commands, (resolve, reject) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            Db.getGames().then((games) => {
-                if (!games || games.length === 0) {
-                    commands.service.queue(`Sorry, ${user}, but there are no games to be notified for.`);
-                    reject(new Error("There are no games to be notified for."));
-                    return;
-                }
+        let games;
+        try {
+            games = await Db.getGames();
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a database error while retrieving the games list.", err);
+        }
 
-                let response = "You may use `!notify <game>` for the following games:";
+        if (!games || games.length === 0) {
+            await this.service.queue(`Sorry, ${user}, but there are no games to be notified for.`);
+            throw new Error("There are no games to be notified for.");
+        }
 
-                games.forEach((row) => {
-                    response += `\n\`${row.code}\` - ${row.game}`;
-                });
+        let response = "You may use `!notify <game>` for the following games:";
 
-                commands.service.queue(response, user);
-                resolve(true);
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a database error while retrieving the games list.", err));
-            });
+        games.forEach((row) => {
+            response += `\n\`${row.code}\` - ${row.game}`;
         });
+
+        await this.service.queue(response, user.discord);
+        return true;
     }
 
     //              #     #      #
@@ -909,37 +854,35 @@ class Commands {
     //                                #
     /**
      * Sets up a user to be notified for a game.  Discord-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    notify(user, message) {
-        const commands = this;
+    async notify(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
 
-        return Commands.discordPromise(commands, (resolve, reject) => {
-            if (!message) {
-                resolve(false);
-                return;
-            }
+        if (!message) {
+            return false;
+        }
 
-            message = message.toLowerCase();
+        message = message.toLowerCase();
 
-            const role = Discord.findRoleByName(message);
+        const role = Discord.findRoleByName(message);
 
-            if (!role) {
-                commands.service.queue(`Sorry, ${user}, but the game ${message} does not exist.`);
-                reject(new Error("Game does not exist."));
-                return;
-            }
+        if (!role) {
+            await this.service.queue(`Sorry, ${user}, but the game ${message} does not exist.`);
+            throw new Error("Game does not exist.");
+        }
 
-            Discord.addUserToRole(user, role).then(() => {
-                commands.service.queue(`${user}, you have been setup to be notified whenever ${role.name} is mentioned!`);
-                resolve(true);
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a Discord error while attempting to add the user to the role.", err));
-            });
-        });
+        try {
+            await Discord.addUserToRole(user.discord, role);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Discord error while attempting to add the user to the role.", err);
+        }
+
+        await this.service.queue(`${user}, you have been setup to be notified whenever ${role.name} is mentioned!`);
+        return true;
     }
 
     //                          #     #      #
@@ -951,37 +894,36 @@ class Commands {
     //                                            #
     /**
      * Stops notifications for a game for a user.  Discord-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    unnotify(user, message) {
-        const commands = this;
+    async unnotify(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
 
-        return Commands.discordPromise(commands, (resolve, reject) => {
-            if (!message) {
-                resolve(false);
-                return;
-            }
+        if (!message) {
+            return false;
+        }
 
-            message = message.toLowerCase();
+        message = message.toLowerCase();
 
-            const role = Discord.findRoleByName(message);
+        const role = Discord.findRoleByName(message);
 
-            if (!role) {
-                commands.service.queue(`Sorry, ${user}, but the game ${message} does not exist.`);
-                reject(new Error("Game does not exist."));
-                return;
-            }
+        if (!role) {
+            await this.service.queue(`Sorry, ${user}, but the game ${message} does not exist.`);
+            throw new Error("Game does not exist.");
+        }
 
-            Discord.removeUserFromRole(user, role).then(() => {
-                commands.service.queue(`${user}, you have been setup to no longer be notified whenever ${role.name} is mentioned!`);
-                resolve(true);
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                reject(new Exception("There was a Discord error while attempting to remove the user from the role.", err));
-            });
-        });
+        try {
+            await Discord.removeUserFromRole(user.discord, role);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Discord error while attempting to remove the user from the role.", err);
+        }
+
+        await this.service.queue(`${user}, you have been setup to no longer be notified whenever ${role.name} is mentioned!`);
+
+        return true;
     }
 
     //         #                                         #     #      #
@@ -993,27 +935,26 @@ class Commands {
     //                                                                     #
     /**
      * Sets up a user to be notified for streams.  Discord-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    streamnotify(user, message) {
-        const commands = this;
+    async streamnotify(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
 
-        return Commands.discordPromise(commands, (resolve, reject) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            Discord.addStreamNotifyRole(user).then(() => {
-                commands.service.queue(`${user}, you have been setup to be notified when Six Gaming or one of its members is live on Twitch!`);
-                resolve(true);
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but there was a problem with setting you up for being notified when Six Gaming or one of its members is live on Twitch.  Are you sure you're not already setup to be notified?`);
-                reject(new Exception("There was a Discord error while attempting to add the user to the role.", err));
-            });
-        });
+        try {
+            await Discord.addStreamNotifyRole(user.discord);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but there was a problem with setting you up for being notified when Six Gaming or one of its members is live on Twitch.  Are you sure you're not already setup to be notified?`);
+            throw new Exception("There was a Discord error while attempting to add the user to the role.", err);
+        }
+
+        await this.service.queue(`${user}, you have been setup to be notified when Six Gaming or one of its members is live on Twitch!`);
+        return true;
     }
 
     //         #                                                     #     #      #
@@ -1025,27 +966,26 @@ class Commands {
     //                                                                                 #
     /**
      * Stops notifications for streams for a user.  Discord-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    streamunnotify(user, message) {
-        const commands = this;
+    async streamunnotify(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
 
-        return Commands.discordPromise(commands, (resolve, reject) => {
-            if (message) {
-                resolve(false);
-                return;
-            }
+        if (message) {
+            return false;
+        }
 
-            Discord.removeStreamNotifyRole(user).then(() => {
-                commands.service.queue(`${user}, you have been setup to be no longer be notified when Six Gaming or one of its members is live on Twitch.`);
-                resolve(true);
-            }).catch((err) => {
-                commands.service.queue(`Sorry, ${user}, but there was a problem with setting you up to not be notified when Six Gaming or one of its members is live on Twitch.  Are you sure you were setup to be notified?`);
-                reject(new Exception("There was a Discord error while attempting to remove the user from the role.", err));
-            });
-        });
+        try {
+            await Discord.removeStreamNotifyRole(user.discord);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but there was a problem with setting you up to not be notified when Six Gaming or one of its members is live on Twitch.  Are you sure you were setup to be notified?`);
+            throw new Exception("There was a Discord error while attempting to remove the user from the role.", err);
+        }
+
+        await this.service.queue(`${user}, you have been setup to be no longer be notified when Six Gaming or one of its members is live on Twitch.`);
+        return true;
     }
 
     //                      #                           #
@@ -1056,35 +996,32 @@ class Commands {
     // #      # #  #  #   ###   ##   #  #   ##   #  #  ###    ###  #  #
     /**
      * Assigns a random Overwatch hero to everyone in the user's voice channel.  Discord-only.
-     * @param {string|User} user The user initiating the command.
+     * @param {User} user The user initiating the command.
      * @param {string} message The text of the command.
-     * @returns {Promise} A promise that resolves when the command completes.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
      */
-    randomonium(user, message) {
-        const commands = this;
+    async randomonium(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
 
-        return Commands.discordPromise(commands, (resolve, reject) => {
-            const voiceChannel = Discord.getUserVoiceChannel(user);
+        const voiceChannel = Discord.getUserVoiceChannel(user.discord);
 
-            if (!voiceChannel) {
-                commands.service.queue(`Sorry, ${user}, but you must be in a voice channel to use this command.`);
-                reject(new Error("User was not in a voice channel."));
-                return;
+        if (!voiceChannel) {
+            await this.service.queue(`Sorry, ${user}, but you must be in a voice channel to use this command.`);
+            throw new Error("User was not in a voice channel.");
+        }
+
+        const heroes = randomonium.getHeroes(voiceChannel.members.size, message === "dupe" || message === "dupes");
+
+        let index = 0;
+
+        for (const member of voiceChannel.members.array()) {
+            if (voiceChannel && member.voiceChannel && voiceChannel.id === member.voiceChannel.id) {
+                await this.service.queue(`${member}: ${heroes[index]}`);
             }
+            index++;
+        }
 
-            const heroes = randomonium.getHeroes(voiceChannel.members.size, message === "dupe" || message === "dupes");
-
-            let index = 0;
-
-            voiceChannel.members.forEach((member) => {
-                if (voiceChannel && member.voiceChannel && voiceChannel.id === member.voiceChannel.id) {
-                    commands.service.queue(`${member}: ${heroes[index]}`);
-                }
-                index++;
-            });
-
-            resolve(true);
-        });
+        return true;
     }
 }
 

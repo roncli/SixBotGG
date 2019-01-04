@@ -7,29 +7,79 @@ const DiscordJs = require("discord.js"),
     settings = require("./settings"),
     Tmi = require("./tmi"),
     Twitch = require("./twitch"),
+    User = require("./user"),
     Warning = require("./warning"),
 
-    channelDeletionTimeouts = {},
-    discord = new DiscordJs.Client(settings.discord),
-    hostingTimestamps = [],
-    hosts = [],
+    discord = new DiscordJs.Client(/** @type {DiscordJs.ClientOptions} */ (settings.discord.options)), // eslint-disable-line no-extra-parens
     liveChannels = {},
     messageParse = /^!([^ ]+)(?: +(.+[^ ]))? *$/,
-    streamers = [],
     urlParse = /^https:\/\/www.twitch.tv\/(.+)$/;
+
+/**
+ * @type {number[]}
+ */
+const hostingTimestamps = [];
+
+/**
+ * @type {string[]}
+ */
+const hosts = [];
+
+/**
+ * @type {Object<string, NodeJS.Timeout>}
+ */
+const channelDeletionTimeouts = {};
+
+/**
+ * @type {string[]}
+ */
+const streamers = [];
 
 let currentHost = "",
     lastHost = 0,
-    liveStreamAnnouncementsChannel,
     manualHosting = false,
     readied = false,
-    sixBotGGChannel,
-    sixGuild,
-    streamNotifyRole,
-    streamersCategory,
-    streamersRole,
-    voiceCategory,
     wasEmptyLast = false;
+
+/**
+ * @type {Commands}
+ */
+let commands;
+
+/**
+ * @type {DiscordJs.TextChannel}
+ */
+let liveStreamAnnouncementsChannel;
+
+/**
+ * @type {DiscordJs.TextChannel}
+ */
+let sixBotGGChannel;
+
+/**
+ * @type {DiscordJs.Guild}
+ */
+let sixGuild;
+
+/**
+ * @type {DiscordJs.Role}
+ */
+let streamNotifyRole;
+
+/**
+ * @type {DiscordJs.CategoryChannel}
+ */
+let streamersCategory;
+
+/**
+ * @type {DiscordJs.Role}
+ */
+let streamersRole;
+
+/**
+ * @type {DiscordJs.CategoryChannel}
+ */
+let voiceCategory;
 
 //  ####     #                                    #
 //   #  #                                         #
@@ -42,6 +92,19 @@ let currentHost = "",
  * A static class that handles all Discord.js interctions.
  */
 class Discord {
+    //                                        #
+    //                                        #
+    //  ##    ##   # #   # #    ###  ###    ###   ###
+    // #     #  #  ####  ####  #  #  #  #  #  #  ##
+    // #     #  #  #  #  #  #  # ##  #  #  #  #    ##
+    //  ##    ##   #  #  #  #   # #  #  #   ###  ###
+    /**
+     * @returns {Commands} The commands object.
+     */
+    static get commands() {
+        return commands;
+    }
+
     //    #   #                                #
     //    #                                    #
     //  ###  ##     ###    ##    ##   ###    ###
@@ -49,7 +112,7 @@ class Discord {
     // #  #   #      ##   #     #  #  #     #  #
     //  ###  ###   ###     ##    ##   #      ###
     /**
-     * @returns {Client} The Discord object.
+     * @returns {DiscordJs.Client} The Discord object.
      */
     static get discord() {
         return discord;
@@ -130,23 +193,24 @@ class Discord {
      * @returns {void}
      */
     static startup() {
-        Discord.commands = new Commands(Discord);
+        commands = new Commands(Discord);
 
         discord.on("ready", () => {
             Log.log("Connected to Discord.");
 
-            sixGuild = discord.guilds.find("name", "Six Gaming");
+            sixGuild = discord.guilds.find((g) => g.name === "Six Gaming");
 
-            liveStreamAnnouncementsChannel = sixGuild.channels.find("name", "live-stream-announcements");
-            streamersCategory = sixGuild.channels.find("name", "Streamers");
-            voiceCategory = sixGuild.channels.find("name", "Voice");
-            sixBotGGChannel = sixGuild.channels.find("name", "sixbotgg");
+            liveStreamAnnouncementsChannel = /** @type {DiscordJs.TextChannel} */ (sixGuild.channels.find((c) => c.name === "live-stream-announcements")); // eslint-disable-line no-extra-parens
+            sixBotGGChannel = /** @type {DiscordJs.TextChannel} */ (sixGuild.channels.find((c) => c.name === "sixbotgg")); // eslint-disable-line no-extra-parens
 
-            streamersRole = sixGuild.roles.find("name", "Streamers");
-            streamNotifyRole = sixGuild.roles.find("name", "Stream Notify");
+            streamersCategory = /** @type {DiscordJs.CategoryChannel} */ (sixGuild.channels.find((c) => c.name === "Streamers")); // eslint-disable-line no-extra-parens
+            voiceCategory = /** @type {DiscordJs.CategoryChannel} */ (sixGuild.channels.find((c) => c.name === "Voice")); // eslint-disable-line no-extra-parens
+
+            streamersRole = sixGuild.roles.find((r) => r.name === "Streamers");
+            streamNotifyRole = sixGuild.roles.find((r) => r.name === "Stream Notify");
 
             // Start deleting old Discord channels.
-            sixGuild.channels.filter((channel) => channel.type === "voice").forEach((channel) => {
+            sixGuild.channels.filter((channel) => channel.type === "voice").forEach((/** @type {DiscordJs.VoiceChannel} */ channel) => {
                 if (channel.name !== "\u{1F4AC} General" && channel.members.size === 0) {
                     Discord.markEmptyVoiceChannel(channel);
                 }
@@ -158,8 +222,12 @@ class Discord {
             }
         });
 
+        discord.on("disconnect", (err) => {
+            Log.exception("Disconnected from Discord.", err);
+        });
+
         discord.on("message", async (message) => {
-            if (message.guild && message.guild.name === "Six Gaming" && message.channel.name === "sixbotgg" && message.channel.type === "text") {
+            if (message.guild && message.guild.name === "Six Gaming" && message.channel instanceof DiscordJs.TextChannel && message.channel.name === "sixbotgg" && message.channel.type === "text") {
                 await Discord.message(message.author, message.content);
             }
         });
@@ -221,24 +289,16 @@ class Discord {
      * @returns {void}
      */
     static connect() {
-        discord.on("error", (err) => {
-            if (err.code === "ECONNRESET") {
-                Log.warning("Connection reset from Discord.");
-            } else {
-                Log.exception("Discord error.", err.error || err);
-            }
-        });
-
-        discord.on("disconnect", (err) => {
-            Log.exception("Disconnected from Discord.", err);
-        });
-
         Log.log("Connecting to Discord...");
 
         discord.login(settings.discord.token).then(() => {
             Log.log("Connected.");
         }).catch((err) => {
             Log.exception("Error connecting to Discord, will automatically retry.", err);
+        });
+
+        discord.on("error", (err) => {
+            Log.exception("Discord error.", err);
         });
     }
 
@@ -263,11 +323,17 @@ class Discord {
     //                                  ###
     /**
      * Parses a message.
-     * @param {User} user The user who sent the message.
+     * @param {DiscordJs.User} user The user who sent the message.
      * @param {string} message The text of the message.
      * @returns {Promise} A promise that resolves when the message is parsed.
      */
     static async message(user, message) {
+        const member = Discord.findGuildUserById(user.id);
+
+        if (!member) {
+            return;
+        }
+
         for (const text of message.split("\n")) {
             if (messageParse.test(text)) {
                 const matches = messageParse.exec(text),
@@ -277,10 +343,10 @@ class Discord {
                 if (Object.getOwnPropertyNames(Commands.prototype).filter((p) => typeof Commands.prototype[p] === "function" && p !== "constructor").indexOf(command) !== -1) {
                     let success;
                     try {
-                        await Discord.commands[command](user, args);
+                        await Discord.commands[command](new User(member), args);
                     } catch (err) {
                         if (err instanceof Warning) {
-                            Log.warning(`${user}: ${text}\n${err}`);
+                            Log.warning(`${member}: ${text}\n${err}`);
                         } else if (err instanceof Exception) {
                             Log.exception(err.message, err.innerError);
                         } else {
@@ -291,7 +357,7 @@ class Discord {
                     }
 
                     if (success) {
-                        Log.log(`${user}: ${text}`);
+                        Log.log(`${member}: ${text}`);
                     }
                 }
             }
@@ -306,25 +372,23 @@ class Discord {
     /**
      * Queues a message to be sent.
      * @param {string} message The message to be sent.
-     * @param {Channel} [channel] The channel to send the message to.
-     * @returns {Promise} A promise that resolves when the message is sent.
+     * @param {DiscordJs.TextChannel|DiscordJs.DMChannel|DiscordJs.GroupDMChannel|DiscordJs.GuildMember} [channel] The channel to send the message to.
+     * @returns {Promise<DiscordJs.Message>} A promise that resolves with the sent message.
      */
-    static queue(message, channel) {
+    static async queue(message, channel) {
         if (!channel) {
             channel = sixBotGGChannel;
         }
 
-        channel.send(
-            "",
-            {
-                embed: {
-                    description: message,
-                    timestamp: new Date(),
-                    color: 0x16F6F8,
-                    footer: {icon_url: Discord.icon} // eslint-disable-line camelcase
-                }
-            }
-        );
+        if (channel.id === discord.user.id) {
+            return void 0;
+        }
+
+        let msg;
+        try {
+            msg = await Discord.richQueue(new DiscordJs.RichEmbed({description: message}), channel);
+        } catch {}
+        return msg;
     }
 
     //        #          #      ##
@@ -336,25 +400,46 @@ class Discord {
     //                            #
     /**
      * Queues a rich embed message to be sent.
-     * @param {object} message The message to be sent.
-     * @param {Channel} [channel] The channel to send the message to.
-     * @returns {Promise} A promise that resolves when the message is sent.
+     * @param {DiscordJs.RichEmbed} embed The message to be sent.
+     * @param {DiscordJs.TextChannel|DiscordJs.DMChannel|DiscordJs.GroupDMChannel|DiscordJs.GuildMember} [channel] The channel to send the message to.
+     * @returns {Promise<DiscordJs.Message>} A promise that resolves with the sent message.
      */
-    static richQueue(message, channel) {
+    static async richQueue(embed, channel) {
         if (!channel) {
             channel = sixBotGGChannel;
         }
 
-        if (message.embed && message.embed.fields) {
-            message.embed.fields.forEach((field) => {
+        if (channel.id === discord.user.id) {
+            return void 0;
+        }
+
+        embed.setFooter(embed.footer ? embed.footer.text : "", Discord.icon);
+
+        if (embed && embed.fields) {
+            embed.fields.forEach((field) => {
                 if (field.value && field.value.length > 1024) {
                     field.value = field.value.substring(0, 1024);
-                    console.log(message);
                 }
             });
         }
 
-        channel.send("", message);
+        if (!embed.color) {
+            embed.setColor(0x16F6F8);
+        }
+
+        if (!embed.timestamp) {
+            embed.setTimestamp(new Date());
+        }
+
+        let msg;
+        try {
+            msg = await channel.send("", embed);
+
+            if (msg instanceof Array) {
+                msg = msg[0];
+            }
+        } catch {}
+        return msg;
     }
 
     //  #           ###            #                      #
@@ -365,7 +450,7 @@ class Discord {
     // ###   ###    #      ##    ###   ##    # #  ###      ##   ##   #
     /**
      * Determins whether the user is a podcaster.
-     * @param {User} user The user to check.
+     * @param {DiscordJs.GuildMember} user The user to check.
      * @returns {boolean} Whether the user is a podcaster.
      */
     static isPodcaster(user) {
@@ -386,11 +471,11 @@ class Discord {
     // ###   ###     ##   ####  #  #   ##   #
     /**
      * Determines whether the user is the owner.
-     * @param {User} user The user to check.
+     * @param {DiscordJs.GuildMember} user The user to check.
      * @returns {boolean} Whether the user is a podcaster.
      */
     static isOwner(user) {
-        return user && user.username === settings.admin.username && user.discriminator === settings.admin.discriminator;
+        return user && user.user.username === settings.admin.username && user.user.discriminator === settings.admin.discriminator;
     }
 
     //       #                 #      ##    #
@@ -420,7 +505,7 @@ class Discord {
                 });
             }
 
-            Twitch.getStreams(["sixgaminggg"].concat(streamers, hosts).join(",")).then((streams) => {
+            Twitch.getStreams(["sixgaminggg"].concat(streamers, hosts)).then((streams) => {
                 const wentOffline = [],
                     wentLive = [];
                 let live = [];
@@ -643,40 +728,32 @@ class Discord {
      * @returns {void}
      */
     static announceStream(stream) {
-        const message = {
-            embed: {
-                timestamp: new Date(),
-                color: 0x16F6F8,
-                footer: {icon_url: Discord.icon}, // eslint-disable-line camelcase
-                thumbnail: {
-                    url: stream.channel.logo,
-                    width: 300,
-                    height: 300
-                },
-                image: {
-                    url: stream.channel.profile_banner,
-                    width: 1920,
-                    height: 480
-                },
-                url: stream.channel.url,
-                fields: []
-            }
-        };
-
-        message.embed.fields.push({
-            name: "Stream Title",
-            value: stream.channel.status
+        const message = new DiscordJs.RichEmbed({
+            timestamp: new Date(),
+            color: 0x16F6F8,
+            footer: {icon_url: Discord.icon}, // eslint-disable-line camelcase
+            thumbnail: {
+                url: stream.channel.logo,
+                width: 300,
+                height: 300
+            },
+            image: {
+                url: stream.channel.profile_banner,
+                width: 1920,
+                height: 480
+            },
+            url: stream.channel.url,
+            fields: []
         });
 
+        message.addField("Stream Title", stream.channel.status);
+
         if (stream.game) {
-            message.embed.fields.push({
-                name: "Now Playing",
-                value: stream.game
-            });
+            message.addField("Now Playing", stream.game);
         }
 
         if (stream.channel.display_name.toLowerCase() === "sixgaminggg") {
-            message.embed.description = `${streamNotifyRole} - Six Gaming just went live on Twitch!  Watch at ${stream.channel.url}`;
+            message.setDescription(`${streamNotifyRole} - Six Gaming just went live on Twitch!  Watch at ${stream.channel.url}`);
             currentHost = "";
             manualHosting = false;
             Tmi.unhost("sixgaminggg").catch(() => {});
@@ -696,11 +773,11 @@ class Discord {
                 }
             });
         } else if (streamers.indexOf(stream.channel.display_name.toLowerCase()) !== -1) {
-            message.embed.description = `${streamNotifyRole} - Six Gamer ${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
+            message.setDescription(`${streamNotifyRole} - Six Gamer ${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`);
         } else if (hosts.indexOf(stream.channel.display_name.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition
-            message.embed.description = `${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`;
+            message.setDescription(`${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`);
         } else {
-            message.embed.description = `${stream.channel.display_name} has been hosted by Six Gaming on Twitch!  Watch at ${stream.channel.url}`;
+            message.setDescription(`${stream.channel.display_name} has been hosted by Six Gaming on Twitch!  Watch at ${stream.channel.url}`);
             lastHost = 0;
             hostingTimestamps.push(new Date().getTime());
             while (hostingTimestamps.length > 3) {
@@ -720,7 +797,7 @@ class Discord {
     //                                     #            #
     /**
      * Marks a voice channel as empty, queuing it for deleting in 5 minutes.
-     * @param {VoiceChannel} channel The voice channel that is now empty.
+     * @param {DiscordJs.VoiceChannel} channel The voice channel that is now empty.
      * @returns {void}
      */
     static markEmptyVoiceChannel(channel) {
@@ -774,8 +851,8 @@ class Discord {
     //  ###
     /**
      * Get the voice channel the user is in.
-     * @param {User} user The user to check.
-     * @returns {VoiceChannel} The voice channel the user is in.
+     * @param {DiscordJs.GuildMember} user The user to check.
+     * @returns {DiscordJs.VoiceChannel} The voice channel the user is in.
      */
     static getUserVoiceChannel(user) {
         return sixGuild.member(user).voiceChannel;
@@ -791,10 +868,10 @@ class Discord {
     /**
      * Returns the Discord user in the guild by their Discord ID.
      * @param {string} id The ID of the Discord user.
-     * @returns {User} The Discord user.
+     * @returns {DiscordJs.GuildMember} The Discord user.
      */
     static findGuildUserById(id) {
-        return sixGuild.members.find("id", id);
+        return sixGuild.members.find((m) => m.id === id);
     }
 
     //   #    #             #   ##   #                             ##    ###         #  #
@@ -807,10 +884,10 @@ class Discord {
     /**
      * Finds a Discord channel by its name.
      * @param {string} name The name of the channel.
-     * @returns {Channel} The Discord channel.
+     * @returns {DiscordJs.Channel} The Discord channel.
      */
     static findChannelByName(name) {
-        return sixGuild.channels.find("name", name);
+        return sixGuild.channels.find((c) => c.name === name);
     }
 
     //   #    #             #  ###         ##          ###         #  #
@@ -823,10 +900,10 @@ class Discord {
     /**
      * Finds a Discord role by its name.
      * @param {string} name The name of the role.
-     * @returns {Role} The Discord Role.
+     * @returns {DiscordJs.Role} The Discord Role.
      */
     static findRoleByName(name) {
-        return sixGuild.roles.find("name", name);
+        return sixGuild.roles.find((r) => r.name === name);
     }
 
     //          #     #   ##    #
@@ -905,7 +982,7 @@ class Discord {
     //  # #   ###   ###   ##     ##  #      ##    # #  #  #   ##   #     ###    #  #   ##   ###    ##
     /**
      * Adds a user to the streamres role.
-     * @param {User} user The user to add to the role.
+     * @param {DiscordJs.GuildMember} user The user to add to the role.
      * @returns {Promise} A promise that resolves when the user has been added to the role.
      */
     static async addStreamersRole(user) {
@@ -920,7 +997,7 @@ class Discord {
     // #      ##   #  #   ##    #     ##    ##     ##  #      ##    # #  #  #   ##   #     ###    #  #   ##   ###    ##
     /**
      * Removes a user from the streamers role.
-     * @param {User} user The user to remove from the role.
+     * @param {DiscordJs.GuildMember} user The user to remove from the role.
      * @returns {Promise} A promise that resovles when the user has been removed from the role.
      */
     static async removeStreamersRole(user) {
@@ -936,7 +1013,7 @@ class Discord {
     //                                                                                      #
     /**
      * Adds a user to the stream notify role.
-     * @param {User} user The user to add to the role.
+     * @param {DiscordJs.GuildMember} user The user to add to the role.
      * @returns {Promise} A promise that resolves when the user has been added to the role.
      */
     static async addStreamNotifyRole(user) {
@@ -952,7 +1029,7 @@ class Discord {
     //                                                                                                        #
     /**
      * Removes a user from the stream notify role.
-     * @param {User} user The user to remove from the role.
+     * @param {DiscordJs.GuildMember} user The user to remove from the role.
      * @returns {Promise} A promise that resolves when the user has been removed from the role.
      */
     static async removeStreamNotifyRole(user) {
@@ -982,8 +1059,8 @@ class Discord {
     //  # #   ###   ###   ##   ###     ##   #      #     ##   #  #   ##   ###    ##
     /**
      * Adds a user to a role.
-     * @param {User} user The user to add to the role.
-     * @param {Role} role The role to add the user to.
+     * @param {DiscordJs.GuildMember} user The user to add to the role.
+     * @param {DiscordJs.Role} role The role to add the user to.
      * @returns {Promise} A promise that resolves when the user has been added to the role.
      */
     static async addUserToRole(user, role) {
@@ -998,8 +1075,8 @@ class Discord {
     // #      ##   #  #   ##    #     ##    ##   ###     ##   #     #     #      ##   #  #  #  #   ##   ###    ##
     /**
      * Removes a user from a role.
-     * @param {User} user The user to remove from the role.
-     * @param {Role} role The role to remove the user to.
+     * @param {DiscordJs.GuildMember} user The user to remove from the role.
+     * @param {DiscordJs.Role} role The role to remove the user to.
      * @returns {Promise} A promise that resolves when the user has been removed from the role.
      */
     static async removeUserFromRole(user, role) {
@@ -1015,10 +1092,10 @@ class Discord {
     /**
      * Creates a text channel.
      * @param {string} name The name of the channel to create.
-     * @returns {Promise<TextChannel>} A promise that resolves with the created channel.
+     * @returns {Promise<DiscordJs.TextChannel>} A promise that resolves with the created channel.
      */
     static async createTextChannel(name) {
-        const channel = await sixGuild.createChannel(name, "text");
+        const channel = /** @type {DiscordJs.TextChannel} */ (await sixGuild.createChannel(name, "text")); // eslint-disable-line no-extra-parens
 
         await channel.setParent(streamersCategory);
 
@@ -1034,10 +1111,10 @@ class Discord {
     /**
      * Creates a voice channel.
      * @param {string} name The name of the channel to create.
-     * @returns {Promise<VoiceChannel>} A promise that resolves with the created channel.
+     * @returns {Promise<DiscordJs.VoiceChannel>} A promise that resolves with the created channel.
      */
     static async createVoiceChannel(name) {
-        const channel = await sixGuild.createChannel(name, "voice");
+        const channel = /** @type {DiscordJs.VoiceChannel} */ (await sixGuild.createChannel(name, "voice")); // eslint-disable-line no-extra-parens
 
         await channel.edit({bitrate: 64000});
         await channel.setParent(voiceCategory);

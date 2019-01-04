@@ -1,4 +1,4 @@
-const TmiJs = require("tmi.js"),
+const TwitchJs = require("twitch-js"),
 
     Commands = require("./commands"),
     Exception = require("./exception"),
@@ -16,10 +16,19 @@ const TmiJs = require("tmi.js"),
     ],
     chatters = {},
     messageParse = /^!([^ ]+)(?: +(.+[^ ]))? *$/,
-    tmi = new TmiJs.Client(settings.tmi);
+    tmi = new TwitchJs.Client(settings.tmi);
 
-let commandRotationTimeout = 0,
-    commandRotationWait = 5;
+let commandRotationWait = 5;
+
+/**
+ * @type {Commands}
+ */
+let commands;
+
+/**
+ * @type {NodeJS.Timeout}
+ */
+let commandRotationTimeout;
 
 //  #####           #
 //    #
@@ -29,9 +38,24 @@ let commandRotationTimeout = 0,
 //    #    # # #    #
 //    #    #   #   ###
 /**
- * A class that handles calls to tmi.js.
+ * A class that handles calls to twitch-js.
+ * @property {Commands} Tmi.commands
  */
 class Tmi {
+    //                                        #
+    //                                        #
+    //  ##    ##   # #   # #    ###  ###    ###   ###
+    // #     #  #  ####  ####  #  #  #  #  #  #  ##
+    // #     #  #  #  #  #  #  # ##  #  #  #  #    ##
+    //  ##    ##   #  #  #  #   # #  #  #   ###  ###
+    /**
+     * Gets the commands object.
+     * @returns {Commands} The commands object.
+     */
+    static get commands() {
+        return commands;
+    }
+
     //         #                 #
     //         #                 #
     //  ###   ###    ###  ###   ###   #  #  ###
@@ -44,7 +68,7 @@ class Tmi {
      * @returns {void}
      */
     static startup() {
-        Tmi.commands = new Commands(Tmi);
+        commands = new Commands(Tmi);
 
         tmi.on("connected", async () => {
             Log.log("Connected to tmi.");
@@ -108,7 +132,7 @@ class Tmi {
     //  ##    ##   #  #  #  #   ##    ##     ##
     /**
      * Connects to tmi.
-     * @returns {void}
+     * @returns {Promise} A promise that resolves when tmi is connected.
      */
     static async connect() {
         Log.log("Connecting to tmi...");
@@ -116,7 +140,7 @@ class Tmi {
         try {
             await tmi.connect();
         } catch (err) {
-            Log.exception("TMI connection failed.", err);
+            Log.exception("tmi connection failed.", err);
         }
 
         // Setup IRC command rotation.
@@ -133,7 +157,7 @@ class Tmi {
      * Parses a message.
      * @param {string} user The user who sent the message.
      * @param {string} text The text of the message.
-     * @returns {void}
+     * @returns {Promise} A promise that resolves when the message is parsed.
      */
     static async message(user, text) {
         if (messageParse.test(text)) {
@@ -198,6 +222,11 @@ class Tmi {
         try {
             await tmi.host(hostingChannel, hostedChannel);
         } catch (err) {
+            if (err === "bad_host_hosting") {
+                // Not an error, we're just already hosting that channel.
+                return;
+            }
+
             if (err === "No response from Twitch.") {
                 Log.log(`Host command from ${hostingChannel} to ${hostedChannel} failed due to no response from Twitch.`);
             } else {
@@ -252,7 +281,7 @@ class Tmi {
     //  ##    ##   #  #  #  #   # #  #  #   ###  #  #   ##     ##   # #    ##  ###    ##   #  #
     /**
      * Automatically sends a rotating message to chat every 10 minutes.
-     * @returns {void}
+     * @returns {Promise} A promise that resolves when a command is sent.
      */
     static async commandRotation() {
         if (commandRotationWait <= 0) {

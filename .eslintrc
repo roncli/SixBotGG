@@ -45,6 +45,7 @@
         "no-confusing-arrow": "off",
         "no-console": "off",
         "no-continue": "off",
+        "no-empty": "off",
         "no-empty-function": "off",
         "no-implicit-coercion": "off",
         "no-inline-comments": "off",
@@ -86,12 +87,6 @@
         "sort-vars": "off",
         "space-before-function-paren": "off",
         "quote-props": "off",
-        "valid-jsdoc": [
-            "error", {
-                "prefer": {
-                    "return": "return"
-                }
-            }
-        ]
+        "valid-jsdoc": "off"
     }
 }

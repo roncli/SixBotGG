@@ -86,13 +86,18 @@ The following should be the contents of settings.js:
 
 Coming Soon
 ===========
-1.4.2
+1.5.0
 -----
-* Upgrade to new Twitch library that uses the new Helix API.
-* Nothing to see here. 😴
+* New `!limit` command to limit the number of users between 0 and 99 in your most recently created voice channel.
+* New `!private` command to make your most recently created voice channel private to you.
+* New `!permit` command to permit another user into your private voice channel.
+* You can't see me. 👀
 
-1.4.1
------
+Version History
+===============
+
+1.4.1 - 1/3/2019
+----------------
 * Remove streamers that are no longer on the Discord server.
 * Fixed multiple Twitch live announcements.
 * Discord.js update to get channels inside categories working as expected.
@@ -100,10 +105,10 @@ Coming Soon
 * Use database library for improved error handling.
 * Improved error logging.
 * Added Brigitte, Wrecking Ball, and Ashe to randomonium.
+* Replaced tmi.js with twitch-js.
+* Starting on backend improvements.
 * Get out. 👉
 
-Version History
-===============
 1.4 - 12/25/2017
 ----------------
 * Implement advanced logging which outputs bot activity to #bot-activity, and error activity to #bot-errors.

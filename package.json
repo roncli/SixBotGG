@@ -20,8 +20,11 @@
     "dependencies": {
         "discord.js": "11.4.2",
         "node-database": "roncli/node-database#v1.0.2",
-        "tmi.js": "1.2.1",
-        "twitch-api": "0.5.0"
+        "twitch-api": "0.5.0",
+        "twitch-js": "1.2.17"
+    },
+    "devDependencies": {
+        "@types/node": "10.12.18"
     },
     "engines": {
         "node": ">=10.0.0"
