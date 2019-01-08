@@ -181,6 +181,20 @@ class Discord {
         return void 0;
     }
 
+    //         #           ##          #    ##       #
+    //                    #  #               #       #
+    //  ###   ##    #  #  #     #  #  ##     #     ###
+    // ##      #     ##   # ##  #  #   #     #    #  #
+    //   ##    #     ##   #  #  #  #   #     #    #  #
+    // ###    ###   #  #   ###   ###  ###   ###    ###
+    /**
+     * The Six Gaming guild.
+     * @returns {DiscordJs.Guild} The Six Gaming guild object.
+     */
+    static get sixGuild() {
+        return sixGuild;
+    }
+
     //         #                 #
     //         #                 #
     //  ###   ###    ###  ###   ###   #  #  ###

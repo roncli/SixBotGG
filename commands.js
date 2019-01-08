@@ -1,5 +1,6 @@
 /**
  * @typedef {import("discord.js").GuildMember} DiscordJs.GuildMember
+ * @typedef {import("discord.js").VoiceChannel} DiscordJs.VoiceChannel
  * @typedef {import("./user")} User
  */
 
@@ -10,7 +11,17 @@ const Db = require("./database"),
     Twitch = require("./twitch"),
 
     addGameParse = /^([a-zA-Z0-9]{2,50}) +(.{2,255})$/,
-    userCreatedChannels = {};
+    idParse = /^<@!?([0-9]+)>$/;
+
+/**
+ * @type {Object<string, string>}
+ */
+const lastCreatedChannel = {};
+
+/**
+ * @type {Object<string, NodeJS.Timeout>}
+ */
+const userCreatedChannels = {};
 
 /**
  * @type {typeof import("./discord")}
@@ -699,6 +710,140 @@ class Commands {
         }, 300000);
 
         await this.service.queue(`${user}, the voice channel ${message} has been created.  It will be automatically deleted after being empty for 5 minutes.`);
+
+        lastCreatedChannel[user.discord.id] = message;
+
+        return true;
+    }
+
+    // ##     #           #     #
+    //  #                       #
+    //  #    ##    # #   ##    ###
+    //  #     #    ####   #     #
+    //  #     #    #  #   #     #
+    // ###   ###   #  #  ###     ##
+    /**
+     * Limits the number of users in a voice channel.
+     * @param {User} user The user initiating the command.
+     * @param {string} message The text of the command.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
+     */
+    async limit(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
+
+        if (!message) {
+            return false;
+        }
+
+        if (!(+message || void 0) || +message < 0 || +message > 99 || +message % 1 !== 0) {
+            await this.service.queue(`Sorry, ${user}, but to limit the number of users in your newly created channel, you must include the number of users between 1 and 99, or 0 for no limit, for example \`!limit 2\`.`);
+            throw new Error("Invalid parameters.");
+        }
+
+        const channel = /** @type {DiscordJs.VoiceChannel} */ (Discord.findChannelByName(lastCreatedChannel[user.discord.id])); // eslint-disable-line no-extra-parens
+        if (!channel) {
+            await this.service.queue(`Sorry, ${user}, but I don't see a channel you've created.  First use \`!addchannel\` before using this command.`);
+            throw new Error("No channel found.");
+        }
+
+        try {
+            await channel.setUserLimit(+message);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Discord error while attempting to limit a voice channel.", err);
+        }
+
+        await this.service.queue(`${user}, the limit on ${channel} has been ${+message === 0 ? "cleared" : `set to ${message} users`}.`);
+
+        return true;
+    }
+
+    //              #                 #
+    //                                #
+    // ###   ###   ##    # #    ###  ###    ##
+    // #  #  #  #   #    # #   #  #   #    # ##
+    // #  #  #      #    # #   # ##   #    ##
+    // ###   #     ###    #     # #    ##   ##
+    // #
+    /**
+     * Makes a voice channel private.
+     * @param {User} user The user initiating the command.
+     * @param {string} message The text of the command.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
+     */
+    async private(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
+
+        if (message) {
+            return false;
+        }
+
+        const channel = /** @type {DiscordJs.VoiceChannel} */ (Discord.findChannelByName(lastCreatedChannel[user.discord.id])); // eslint-disable-line no-extra-parens
+        if (!channel) {
+            await this.service.queue(`Sorry, ${user}, but I don't see a channel you've created.  First use \`!addchannel\` before using this command.`);
+            throw new Error("No channel found.");
+        }
+
+        try {
+            await channel.overwritePermissions(Discord.sixGuild, {"CONNECT": false});
+            await channel.overwritePermissions(user.discord, {"CONNECT": true});
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Discord error while attempting make a voice channel private.", err);
+        }
+
+        await this.service.queue(`${user}, ${channel} is now a private channel.  Use the \`!permit\` command to permit other users to join it.`);
+
+        return true;
+    }
+
+    //                          #     #
+    //                                #
+    // ###    ##   ###   # #   ##    ###
+    // #  #  # ##  #  #  ####   #     #
+    // #  #  ##    #     #  #   #     #
+    // ###    ##   #     #  #  ###     ##
+    // #
+    /**
+     * Permits a user to join a voice channel.
+     * @param {User} user The user initiating the command.
+     * @param {string} message The text of the command.
+     * @returns {Promise<boolean>} A promise that resolves with whether the command completed successfully.
+     */
+    async permit(user, message) {
+        Commands.checkMessageIsFromDiscord(this.service);
+
+        if (!message) {
+            return false;
+        }
+
+        if (!idParse.test(message)) {
+            await this.service.queue(`Sorry, ${user}, but you need to mention a user with this command, for example \`!permit @roncli\`.`);
+            throw new Error("No user mentioned.");
+        }
+
+        const {1: id} = idParse.exec(message),
+            member = Discord.findGuildUserById(id);
+
+        if (!member) {
+            await this.service.queue(`Sorry, ${user}, but I can't find a member by that name on this server.`);
+            throw new Error("Member not on the server.");
+        }
+
+        const channel = /** @type {DiscordJs.VoiceChannel} */ (Discord.findChannelByName(lastCreatedChannel[user.discord.id])); // eslint-disable-line no-extra-parens
+        if (!channel) {
+            await this.service.queue(`Sorry, ${user}, but I don't see a channel you've created.  First use \`!addchannel\` before using this command.`);
+            throw new Error("No channel found.");
+        }
+
+        try {
+            await channel.overwritePermissions(member, {"CONNECT": true});
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Discord error while attempting to permit a user in a voice channel.", err);
+        }
+
+        await this.service.queue(`${user}, ${member} is now permitted to join ${channel}.`);
 
         return true;
     }
