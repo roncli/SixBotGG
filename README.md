@@ -84,17 +84,17 @@ The following should be the contents of settings.js:
             }
         };
 
-Coming Soon
-===========
+Version History
+===============
 1.5.0
 -----
 * New `!limit` command to limit the number of users between 0 and 99 in your most recently created voice channel.
 * New `!private` command to make your most recently created voice channel private to you.
 * New `!permit` command to permit another user into your private voice channel.
+* Replaced twitch-api with twitch.
+* Logging improvements.
+* Added Baptiste and Sigma to randomonium.
 * You can't see me. 👀
-
-Version History
-===============
 
 1.4.1 - 1/3/2019
 ----------------
