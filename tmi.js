@@ -15,7 +15,7 @@ const TwitchJs = require("twitch-js"),
         "website"
     ],
     chatters = {},
-    messageParse = /^!([^ ]+)(?: +(.+[^ ]))? *$/,
+    messageParse = /^!(?<cmd>[^ ]+)(?: +(?<args>.+[^ ]))? *$/,
     tmi = new TwitchJs.Client(settings.tmi);
 
 let commandRotationWait = 5;
@@ -161,9 +161,8 @@ class Tmi {
      */
     static async message(user, text) {
         if (messageParse.test(text)) {
-            const matches = messageParse.exec(text),
-                command = matches[1].toLocaleLowerCase(),
-                args = matches[2];
+            const {groups: {cmd, args}} = messageParse.exec(text),
+                command = cmd.toLocaleLowerCase();
 
             if (Object.getOwnPropertyNames(Commands.prototype).filter((p) => typeof Commands.prototype[p] === "function" && p !== "constructor").indexOf(command) !== -1) {
                 let success;

@@ -62,7 +62,7 @@ class User {
     //                                            ###
     /**
      * Returns a string representation of the user.
-     * @returns {string}
+     * @returns {string} Returns the user name.
      */
     toString() {
         return `${this.user}`;

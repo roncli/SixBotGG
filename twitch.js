@@ -1,8 +1,17 @@
-const TwitchApi = require("twitch-api"),
+/**
+ * @typedef {import("twitch").Channel} TwitchApi.Channel
+ * @typedef {import("twitch").HelixStream} TwitchApi.HelixStream
+ * @typedef {import("twitch").default} TwitchApi.TwitchClient
+ */
 
-    settings = require("./settings"),
+const {default: TwitchApi, HelixStreamType} = require("twitch"),
 
-    twitchApi = new TwitchApi(settings.twitch);
+    settings = require("./settings");
+
+/**
+ * @type {TwitchApi.TwitchClient}
+ */
+let twitchApi;
 
 //  #####           #     #            #
 //    #                   #            #
@@ -15,6 +24,22 @@ const TwitchApi = require("twitch-api"),
  * A class that encapsulates functions needed from the twitch-api library.
  */
 class Twitch {
+    //  #           #     #
+    //                    #
+    // ##    ###   ##    ###
+    //  #    #  #   #     #
+    //  #    #  #   #     #
+    // ###   #  #  ###     ##
+    /**
+     * Initializes the twitch API client.
+     * @returns {Promise} A promise that resolves when the client has been initialized.
+     */
+    static async init() {
+        if (!twitchApi) {
+            twitchApi = await TwitchApi.withClientCredentials(settings.twitch.clientId, settings.twitch.clientSecret);
+        }
+    }
+
     //              #     ##    #
     //              #    #  #   #
     //  ###   ##   ###    #    ###   ###    ##    ###  # #    ###
@@ -25,49 +50,12 @@ class Twitch {
     /**
      * Returns the streams that are live from the provided list of channels.
      * @param {string[]} channels An array of channels to check.
-     * @param {number} [offset] For internal use only.  The offset in the returned streams.
-     * @param {Object[]} [streams] For internal use only.  An array of intermediate results.
-     * @returns {Promise<Object[]>} An array of streams that are live from the provided list of channels.
+     * @returns {Promise<TwitchApi.HelixStream[]>} An array of streams that are live from the provided list of channels.
      */
-    static getStreams(channels, offset, streams) {
-        let recurse = false;
+    static async getStreams(channels) {
+        await Twitch.init();
 
-        if (offset === void 0) {
-            offset = 0;
-            streams = [];
-        }
-
-        return new Promise((resolve, reject) => {
-            twitchApi.getStreams({channel: channels, limit: 100, "stream_type": "live", offset}, (err, results) => {
-                if (err || !results || typeof results === "string") {
-                    reject(err);
-                    return;
-                }
-
-                // Sanitize data.
-                if (!results.streams) {
-                    results.streams = [];
-                }
-                if (!results._total) {
-                    results._total = 0;
-                }
-
-                // Concat streams and continue getting more streams if necessary.
-                streams = streams.concat(results.streams);
-
-                if (results._total > offset + 100) {
-                    recurse = true;
-                }
-
-                resolve();
-            });
-        }).then(() => {
-            if (recurse) {
-                return Twitch.getStreams(channels, offset + 100, streams);
-            }
-
-            return streams;
-        });
+        return twitchApi.helix.streams.getStreamsPaginated({userName: channels, type: HelixStreamType.Live}).getAll();
     }
 
     //              #     ##   #                             ##     ##    #
@@ -80,19 +68,12 @@ class Twitch {
     /**
      * Returns the channel's stream information.
      * @param {string} channel The channel to check.
-     * @returns {Promise<Object>} The channel's stream information.
+     * @returns {Promise<TwitchApi.Channel>} The channel's stream information.
      */
-    static getChannelStream(channel) {
-        return new Promise((resolve, reject) => {
-            twitchApi.getChannelStream(channel, (err, results) => {
-                if (err) {
-                    reject(err);
-                    return;
-                }
+    static async getChannelStream(channel) {
+        await Twitch.init();
 
-                resolve(results);
-            });
-        });
+        return twitchApi.kraken.channels.getChannel(channel);
     }
 }
 

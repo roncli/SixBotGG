@@ -1,6 +1,7 @@
 /**
  * @typedef {import("discord.js").GuildMember} DiscordJs.GuildMember
  * @typedef {import("discord.js").VoiceChannel} DiscordJs.VoiceChannel
+ * @typedef {typeof Discord|typeof Tmi} Service
  * @typedef {import("./user")} User
  */
 
@@ -9,9 +10,10 @@ const Db = require("./database"),
     pjson = require("./package.json"),
     randomonium = require("./randomonium"),
     Twitch = require("./twitch"),
+    Warning = require("./warning"),
 
-    addGameParse = /^([a-zA-Z0-9]{2,50}) +(.{2,255})$/,
-    idParse = /^<@!?([0-9]+)>$/;
+    addGameParse = /^(?<short>[a-zA-Z0-9]{2,50}) +(?<game>.{2,255})$/,
+    idParse = /^<@!?(?<id>[0-9]+)>$/;
 
 /**
  * @type {Object<string, string>}
@@ -52,7 +54,7 @@ class Commands {
     //  ##    ##   #  #  ###      ##  #      ###   ##     ##   ##   #
     /**
      * Initializes the class with the service to use.
-     * @param {typeof Discord|typeof Tmi} service The service to use with the commands.
+     * @param {Service} service The service to use with the commands.
      */
     constructor(service) {
         this.service = service;
@@ -74,13 +76,13 @@ class Commands {
     //  ##   #  #   ##    ##   #  #   ##   ###     ##   #     ###   ###    #  #   ###  #  #  ###   #  #
     /**
      * Checks that the user is an admin.
-     * @param {typeof Discord|typeof Tmi} service The service.
+     * @param {Service} service The service.
      * @param {User} user The user to check.
      * @returns {void}
      */
     static checkUserIsAdmin(service, user) {
         if (!(service.name === Discord.name && Discord.isPodcaster(user.discord) || service.name === Tmi.name && Tmi.isMod(user.tmi))) {
-            throw new Error("Admin permission required to perform this command.");
+            throw new Warning("Admin permission required to perform this command.");
         }
     }
 
@@ -93,12 +95,12 @@ class Commands {
     //                                                                ###
     /**
      * Checks that the message is from Discord.
-     * @param {typeof Discord|typeof Tmi} service The service.
+     * @param {Service} service The service.
      * @returns {void}
      */
     static checkMessageIsFromDiscord(service) {
         if (service.name !== Discord.name) {
-            throw new Error("This command is for Discord only.");
+            throw new Warning("This command is for Discord only.");
         }
     }
 
@@ -115,7 +117,7 @@ class Commands {
      */
     static checkUserIsOwner(user) {
         if (!user.discord || !Discord.isOwner(user.discord)) {
-            throw new Error("Owner permission required to perform this command.");
+            throw new Warning("Owner permission required to perform this command.");
         }
     }
 
@@ -128,12 +130,12 @@ class Commands {
     //                                                                ###
     /**
      * A promise that only proceeds if the user is on tmi.
-     * @param {typeof Discord|typeof Tmi} service The service.
+     * @param {Service} service The service.
      * @returns {void}
      */
     static checkMessageIsFromTmi(service) {
         if (service.name !== Tmi.name) {
-            throw new Error("This command is for Twitch chat only.");
+            throw new Warning("This command is for Twitch chat only.");
         }
     }
 
@@ -354,30 +356,52 @@ class Commands {
 
         if (Discord.isSixGamingLive()) {
             await this.service.queue(`Sorry, ${user}, but Six Gaming is live right now!`);
-            throw new Error("Cannot host a channel while Six Gaming is live.");
+            throw new Warning("Cannot host a channel while Six Gaming is live.");
         }
 
         if (Discord.canHost()) {
             await this.service.queue(`Sorry, ${user}, but I can only host 3 times within 30 minutes.`);
-            throw new Error("Cannot host a channel when 3 channels have been hosted in the past 30 minutes.");
+            throw new Warning("Cannot host a channel when 3 channels have been hosted in the past 30 minutes.");
         }
 
         message = message.toLowerCase();
 
         if (Discord.currentHost === message) {
             await this.service.queue(`Sorry, ${user}, but I am already hosting ${message}.`);
-            throw new Error("Cannot host the currently hosted channel.");
+            throw new Warning("Cannot host the currently hosted channel.");
+        }
+
+        let streams;
+        try {
+            streams = await Twitch.getStreams([message]);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Twitch API error while getting a stream.", err);
+        }
+
+        if (!streams || streams.length === 0) {
+            await this.service.queue(`Sorry, ${user}, but this channel does not exist.`);
+            throw new Warning("Channel does not exist.");
         }
 
         let results;
         try {
-            results = await Twitch.getChannelStream(message);
+            results = await Twitch.getChannelStream(streams[0].userId);
         } catch (err) {
             await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
             throw new Exception("There was a Twitch API error while getting stream data.", err);
         }
 
-        Discord.manualHosting = results && results.stream;
+        let stream;
+
+        try {
+            stream = await results.getStream();
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Twitch API error while attempting to get a stream to host its channel.", err);
+        }
+
+        Discord.manualHosting = !!(results && results.name);
 
         if (Discord.manualHosting) {
             try {
@@ -385,32 +409,32 @@ class Commands {
             } catch (err) {
                 if (err === "bad_host_hosting") {
                     await this.service.queue(`Sorry, ${user}, but I am already hosting ${message}.`);
-                    throw new Error("Cannot host the currently hosted channel.");
+                    throw new Warning("Cannot host the currently hosted channel.");
                 }
 
                 if (err === "bad_host_error") {
                     await this.service.queue(`Sorry, ${user}, but Twitch is having issues.  Try hosting again later.`);
-                    throw new Error("Twitch error while attempting to host.");
+                    throw new Warning("Twitch error while attempting to host.");
                 }
 
                 await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
-                throw new Exception("There was a Twitch chat error while attempting to host a channel.", err);
+                throw new Exception("There was a Twitch API error while attempting to host a channel.", err);
             }
 
             Discord.currentHost = message;
 
             await Tmi.queue(`Now hosting ${Discord.currentHost}.  Check out their stream at http://twitch.tv/${Discord.currentHost}!`);
-            Discord.announceStream(results.stream);
+            Discord.announceStream(stream);
 
             return true;
         }
 
         if (results) {
             await this.service.queue(`Sorry, ${user}, but ${message} is not live right now.`);
-            throw new Error("Cannot host a channel that is not live.");
+            throw new Warning("Cannot host a channel that is not live.");
         } else {
             await this.service.queue(`Sorry, ${user}, but ${message} is not a valid Twitch streamer.`);
-            throw new Error("Channel does not exist.");
+            throw new Warning("Channel does not exist.");
         }
     }
 
@@ -435,7 +459,7 @@ class Commands {
 
         if (!Discord.currentHost) {
             await this.service.queue(`Sorry, ${user}, but you can't stop hosting when the channel isn't hosting anyone.`);
-            throw new Error("Not currently hosting a channel.");
+            throw new Warning("Not currently hosting a channel.");
         }
 
         Tmi.unhost("sixgaminggg").catch(() => {});
@@ -477,7 +501,7 @@ class Commands {
 
         if (!streamer) {
             await this.service.queue(`Sorry, ${user}, but you are not currently registered as a streamer.  To get registered, connect your Discord account to Twitch and then go live on Twitch.  The bot will automatically register you as a streamer when it sees you live!`);
-            throw new Error("User is not a streamer.");
+            throw new Warning("User is not a streamer.");
         }
 
         let channel;
@@ -542,13 +566,13 @@ class Commands {
 
         if (!streamer) {
             await this.service.queue(`Sorry, ${user}, but you are not currently registered as a streamer.  Use \`!addtwitch\` to add your channel.`);
-            throw new Error("User is not a streamer.");
+            throw new Warning("User is not a streamer.");
         }
 
         const channel = Discord.findChannelByName(`twitch-${streamer}`);
         if (!channel) {
             await this.service.queue(`Sorry, ${user}, but there was a problem removing your text channel.  Are you sure you have one?`);
-            throw new Error("Channel does not exist.");
+            throw new Warning("Channel does not exist.");
         }
 
         try {
@@ -578,9 +602,22 @@ class Commands {
         Commands.checkMessageIsFromDiscord(this.service);
         Commands.checkUserIsAdmin(this.service, user);
 
+        let streams;
+        try {
+            streams = await Twitch.getStreams([message]);
+        } catch (err) {
+            await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
+            throw new Exception("There was a Twitch API error while getting a stream.", err);
+        }
+
+        if (!streams || streams.length === 0) {
+            await this.service.queue(`Sorry, ${user}, but this channel does not exist.`);
+            throw new Warning("Channel does not exist.");
+        }
+
         let results;
         try {
-            results = Twitch.getChannelStream(message);
+            results = await Twitch.getChannelStream(streams[0].userId);
         } catch (err) {
             await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
             throw new Exception("There was a Twitch API error while checking if the streamer exists.", err);
@@ -588,7 +625,7 @@ class Commands {
 
         if (!results) {
             await this.service.queue(`Sorry, ${user}, but ${message} is not a valid Twitch streamer.`);
-            throw new Error("Invalid Twitch streamer name.");
+            throw new Warning("Invalid Twitch streamer name.");
         }
 
         let exists;
@@ -601,7 +638,7 @@ class Commands {
 
         if (exists) {
             await this.service.queue(`Sorry, ${user}, but ${message} has already been added as a streamer to be hosted.`);
-            throw new Error("Streamer is already a hosted streamer.");
+            throw new Warning("Streamer is already a hosted streamer.");
         }
 
         try {
@@ -647,7 +684,7 @@ class Commands {
 
         if (!id) {
             await this.service.queue(`Sorry, ${user}, but ${message} is not currently a hosted streamer.`);
-            throw new Error("Stremaer is not a hosted streamer.");
+            throw new Warning("Stremaer is not a hosted streamer.");
         }
 
         try {
@@ -685,12 +722,12 @@ class Commands {
 
         if (userCreatedChannels[user.discord.id]) {
             await this.service.queue(`Sorry, ${user}, but you can only create a voice channel once every five minutes.`);
-            throw new Error("Can only create a voice channel once every 5 minutes.");
+            throw new Warning("Can only create a voice channel once every 5 minutes.");
         }
 
         if (Discord.findChannelByName(message)) {
             await this.service.queue(`Sorry, ${user}, but ${message} already exists as a voice channel.`);
-            throw new Error("Channel already exists.");
+            throw new Warning("Channel already exists.");
         }
 
         let channel;
@@ -737,13 +774,13 @@ class Commands {
 
         if (!(+message || void 0) || +message < 0 || +message > 99 || +message % 1 !== 0) {
             await this.service.queue(`Sorry, ${user}, but to limit the number of users in your newly created channel, you must include the number of users between 1 and 99, or 0 for no limit, for example \`!limit 2\`.`);
-            throw new Error("Invalid parameters.");
+            throw new Warning("Invalid parameters.");
         }
 
         const channel = /** @type {DiscordJs.VoiceChannel} */ (Discord.findChannelByName(lastCreatedChannel[user.discord.id])); // eslint-disable-line no-extra-parens
         if (!channel) {
             await this.service.queue(`Sorry, ${user}, but I don't see a channel you've created.  First use \`!addchannel\` before using this command.`);
-            throw new Error("No channel found.");
+            throw new Warning("No channel found.");
         }
 
         try {
@@ -781,11 +818,11 @@ class Commands {
         const channel = /** @type {DiscordJs.VoiceChannel} */ (Discord.findChannelByName(lastCreatedChannel[user.discord.id])); // eslint-disable-line no-extra-parens
         if (!channel) {
             await this.service.queue(`Sorry, ${user}, but I don't see a channel you've created.  First use \`!addchannel\` before using this command.`);
-            throw new Error("No channel found.");
+            throw new Warning("No channel found.");
         }
 
         try {
-            await channel.overwritePermissions(Discord.sixGuild, {"CONNECT": false});
+            await channel.overwritePermissions(Discord.sixGuild.id, {"CONNECT": false});
             await channel.overwritePermissions(user.discord, {"CONNECT": true});
         } catch (err) {
             await this.service.queue(`Sorry, ${user}, but the server is currently down.  Try later, or get a hold of roncli for fixing.`);
@@ -819,21 +856,21 @@ class Commands {
 
         if (!idParse.test(message)) {
             await this.service.queue(`Sorry, ${user}, but you need to mention a user with this command, for example \`!permit @roncli\`.`);
-            throw new Error("No user mentioned.");
+            throw new Warning("No user mentioned.");
         }
 
-        const {1: id} = idParse.exec(message),
+        const {groups: {id}} = idParse.exec(message),
             member = Discord.findGuildUserById(id);
 
         if (!member) {
             await this.service.queue(`Sorry, ${user}, but I can't find a member by that name on this server.`);
-            throw new Error("Member not on the server.");
+            throw new Warning("Member not on the server.");
         }
 
         const channel = /** @type {DiscordJs.VoiceChannel} */ (Discord.findChannelByName(lastCreatedChannel[user.discord.id])); // eslint-disable-line no-extra-parens
         if (!channel) {
             await this.service.queue(`Sorry, ${user}, but I don't see a channel you've created.  First use \`!addchannel\` before using this command.`);
-            throw new Error("No channel found.");
+            throw new Warning("No channel found.");
         }
 
         try {
@@ -869,10 +906,10 @@ class Commands {
             return false;
         }
 
-        const {1: short, 2: game} = addGameParse.exec(message);
+        const {groups: {short, game}} = addGameParse.exec(message);
         if (Discord.findRoleByName(short)) {
             await this.service.queue(`Sorry, ${user}, but the role for game ${short} has already been created.`);
-            throw new Error("Game has already been added.");
+            throw new Warning("Game has already been added.");
         }
 
         try {
@@ -977,7 +1014,7 @@ class Commands {
 
         if (!games || games.length === 0) {
             await this.service.queue(`Sorry, ${user}, but there are no games to be notified for.`);
-            throw new Error("There are no games to be notified for.");
+            throw new Warning("There are no games to be notified for.");
         }
 
         let response = "You may use `!notify <game>` for the following games:";
@@ -1016,7 +1053,7 @@ class Commands {
 
         if (!role) {
             await this.service.queue(`Sorry, ${user}, but the game ${message} does not exist.`);
-            throw new Error("Game does not exist.");
+            throw new Warning("Game does not exist.");
         }
 
         try {
@@ -1056,7 +1093,7 @@ class Commands {
 
         if (!role) {
             await this.service.queue(`Sorry, ${user}, but the game ${message} does not exist.`);
-            throw new Error("Game does not exist.");
+            throw new Warning("Game does not exist.");
         }
 
         try {
@@ -1152,7 +1189,7 @@ class Commands {
 
         if (!voiceChannel) {
             await this.service.queue(`Sorry, ${user}, but you must be in a voice channel to use this command.`);
-            throw new Error("User was not in a voice channel.");
+            throw new Warning("User was not in a voice channel.");
         }
 
         const heroes = randomonium.getHeroes(voiceChannel.members.size, message === "dupe" || message === "dupes");

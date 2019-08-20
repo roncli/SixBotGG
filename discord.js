@@ -1,3 +1,7 @@
+/**
+ * @typedef {import("twitch").Stream} TwitchApi.Stream
+ */
+
 const DiscordJs = require("discord.js"),
 
     Commands = require("./commands"),
@@ -11,9 +15,14 @@ const DiscordJs = require("discord.js"),
     Warning = require("./warning"),
 
     discord = new DiscordJs.Client(/** @type {DiscordJs.ClientOptions} */ (settings.discord.options)), // eslint-disable-line no-extra-parens
-    liveChannels = {},
-    messageParse = /^!([^ ]+)(?: +(.+[^ ]))? *$/,
-    urlParse = /^https:\/\/www.twitch.tv\/(.+)$/;
+    messageParse = /^!(?<cmd>[^ ]+)(?: +(?<args>.*[^ ]))? *$/,
+    urlParse = /^https:\/\/www.twitch.tv\/(?<user>.+)$/;
+
+
+/**
+ * @type {Object<string, TwitchApi.Stream>}
+ */
+const liveChannels = {};
 
 /**
  * @type {number[]}
@@ -263,10 +272,9 @@ class Discord {
 
         discord.on("presenceUpdate", (oldMember, newMember) => {
             if (newMember.presence && newMember.presence.game && newMember.presence.game.streaming && newMember.presence.game.url && newMember.presence.game.url.includes("twitch.tv")) {
-                const matches = urlParse.exec(newMember.presence.game.url);
 
-                if (matches) {
-                    const user = matches[1];
+                if (urlParse.test(newMember.presence.game.url)) {
+                    const {groups: {user}} = urlParse.exec(newMember.presence.game.url);
 
                     Db.streamerExistsByDiscord(newMember.id).then((exists) => {
                         if (!exists) {
@@ -350,9 +358,8 @@ class Discord {
 
         for (const text of message.split("\n")) {
             if (messageParse.test(text)) {
-                const matches = messageParse.exec(text),
-                    command = matches[1].toLocaleLowerCase(),
-                    args = matches[2];
+                const {groups: {cmd, args}} = messageParse.exec(text),
+                    command = cmd.toLocaleLowerCase();
 
                 if (Object.getOwnPropertyNames(Commands.prototype).filter((p) => typeof Commands.prototype[p] === "function" && p !== "constructor").indexOf(command) !== -1) {
                     let success;
@@ -447,10 +454,12 @@ class Discord {
 
         let msg;
         try {
-            msg = await channel.send("", embed);
+            const msgSend = await channel.send("", embed);
 
-            if (msg instanceof Array) {
-                msg = msg[0];
+            if (msgSend instanceof Array) {
+                msg = msgSend[0];
+            } else {
+                msg = msgSend;
             }
         } catch {}
         return msg;
@@ -500,125 +509,173 @@ class Discord {
     //  ##   #  #   ##    ##   #  #   ##     ##  #      ##    # #  #  #  ###
     /**
      * Checks what streams are live.
-     * @returns {void}
+     * @returns {Promise} A promise that resolves when the streams are checked.
      */
-    static checkStreams() {
+    static async checkStreams() {
         // Remove users who left the server.
-        Db.getStreamers().then((streamerList) => {
-            if (streamerList) {
-                streamerList.forEach((streamer) => {
-                    const {discord: id, streamer: name} = streamer;
+        let streamerList;
+        try {
+            streamerList = await Db.getStreamers();
+        } catch (err) {
+            Log.exception("Database error getting streamers.", err);
+            setTimeout(Discord.checkStreams, 60000);
+            return;
+        }
 
-                    if (!Discord.findGuildUserById(id)) {
-                        Db.deleteStreamerByDiscord(id).then(() => {
-                            Discord.removeStreamer(name);
-                        }).catch((err) => {
-                            Log.exception(`Database error removing streamer \`${name}\` \`${id}\`.`, err);
-                        });
+        if (streamerList) {
+            streamerList.forEach((streamer) => {
+                const {discord: id, streamer: name} = streamer;
+
+                if (!Discord.findGuildUserById(id)) {
+                    Db.deleteStreamerByDiscord(id).then(() => {
+                        Discord.removeStreamer(name);
+                    }).catch((err) => {
+                        Log.exception(`Database error removing streamer \`${name}\` \`${id}\`.`, err);
+                    });
+                }
+            });
+        }
+
+        let streams;
+
+        try {
+            streams = await Twitch.getStreams(["sixgaminggg"].concat(streamers, hosts));
+        } catch (err) {
+            // This is commonly not an error, just try again in a minute.
+            setTimeout(Discord.checkStreams, 60000);
+            return;
+        }
+
+        const wentOffline = [],
+            wentLive = [];
+        let live = [];
+
+        // Get the list of live channels.
+        try {
+            live = streams.map((stream) => stream.userDisplayName.toLocaleLowerCase());
+        } catch (err) {
+            Log.exception("Error checking streams.", err);
+            setTimeout(Discord.checkStreams, 60000);
+            return;
+        }
+
+        // Being empty once is usually a sign of an error.  Will try again next time.
+        if (live.length === 0) {
+            if (!wasEmptyLast) {
+                Log.log("Live list was empty.");
+                wasEmptyLast = true;
+                setTimeout(Discord.checkStreams, 60000);
+                return;
+            }
+        } else {
+            wasEmptyLast = false;
+        }
+
+        // Detect which streams have gone offline.
+        for (const key in liveChannels) {
+            if (live.indexOf(key) === -1) {
+                wentOffline.push(key);
+            }
+        }
+
+        // Remove live channel data from offline streams.
+        for (const name of wentOffline) {
+            if (name.toLowerCase() === "sixgaminggg") {
+                discord.user.setStatus("online").catch((err) => {
+                    if (err.code === "ECONNRESET") {
+                        Log.warning("Connection reset while setting status to online.");
+                    } else {
+                        Log.exception("Error setting status to online.", err);
+                    }
+                });
+                discord.user.setActivity(null, {}).catch((err) => {
+                    if (err.code === "ECONNRESET") {
+                        Log.warning("Connection reset while removing activity.");
+                    } else {
+                        Log.exception("Error removing activity.", err);
                     }
                 });
             }
+            delete liveChannels[name];
+        }
 
-            Twitch.getStreams(["sixgaminggg"].concat(streamers, hosts)).then((streams) => {
-                const wentOffline = [],
-                    wentLive = [];
-                let live = [];
-
-                // Get the list of live channels.
-                try {
-                    live = streams.map((stream) => stream.channel.name.toLowerCase());
-                } catch (err) {
-                    Log.exception("Error checking streams.", err);
-                    setTimeout(() => Discord.checkStreams(), 60000);
-                    return;
-                }
-
-                // Being empty once is usually a sign of an error.  Will try again next time.
-                if (live.length === 0) {
-                    if (!wasEmptyLast) {
-                        Log.log("Live list was empty.");
-                        wasEmptyLast = true;
-                        setTimeout(Discord.checkStreams, 60000);
-                        return;
-                    }
-                } else {
-                    wasEmptyLast = false;
-                }
-
-                // Detect which streams have gone offline.
-                for (const key in liveChannels) {
-                    if (live.indexOf(key) === -1) {
-                        wentOffline.push(key);
-                    }
-                }
-
-                // Remove live channel data from offline streams.
-                for (const name of wentOffline) {
-                    if (name.toLowerCase() === "sixgaminggg") {
-                        discord.user.setStatus("online").catch((err) => {
-                            if (err.code === "ECONNRESET") {
-                                Log.warning("Connection reset while setting status to online.");
-                            } else {
-                                Log.exception("Error setting status to online.", err);
-                            }
-                        });
-                        discord.user.setActivity(null, {}).catch((err) => {
-                            if (err.code === "ECONNRESET") {
-                                Log.warning("Connection reset while removing activity.");
-                            } else {
-                                Log.exception("Error removing activity.", err);
-                            }
-                        });
-                    }
-                    delete liveChannels[name];
-                }
-
-                // Detect which streams have gone online.
-                live.forEach((name) => {
-                    if (!liveChannels[name] && wentLive.indexOf(name) === -1) {
-                        wentLive.push(name);
-                    }
-                });
-
-                // Save channel data.
-                streams.forEach((stream) => {
-                    liveChannels[stream.channel.name.toLowerCase()] = stream;
-                });
-
-                // Discord notifications for new live channels.
-                wentLive.forEach((stream) => {
-                    Discord.announceStream(liveChannels[stream]);
-                });
-
-                // If manual hosting is active, check it.  Afterwards, update hosting.
-                if (manualHosting) {
-                    Twitch.getChannelStream(currentHost).then((results) => {
-                        manualHosting = results && results.stream;
-
-                        if (manualHosting) {
-                            ({stream: liveChannels[currentHost]} = results);
-                        } else {
-                            delete liveChannels[currentHost];
-                            currentHost = "";
-                        }
-
-                        Discord.updateHosting(live);
-                    }).catch((err) => {
-                        // Skip the current round of checking the manual host, and just check again next time.
-                        Discord.updateHosting(live);
-                        Log.exception(`Error checking current host ${currentHost}.`, err);
-                    });
-                } else {
-                    Discord.updateHosting(live);
-                }
-            }).catch(() => {
-                // This is commonly not an error, just try again in a minute.
-                setTimeout(Discord.checkStreams, 60000);
-            });
-        }).catch((err) => {
-            Log.exception("Database error getting streamers.", err);
-            setTimeout(() => Discord.checkStreams(), 60000);
+        // Detect which streams have gone online.
+        live.forEach((name) => {
+            if (!liveChannels[name] && wentLive.indexOf(name) === -1) {
+                wentLive.push(name);
+            }
         });
+
+        // Save channel data.
+        for (const stream of streams) {
+            let channel;
+
+            try {
+                channel = await Twitch.getChannelStream(stream.userId);
+            } catch (err) {
+                Log.exception("Error getting the channel stream.", err);
+            }
+
+            try {
+                liveChannels[stream.userDisplayName.toLocaleLowerCase()] = await channel.getStream();
+            } catch (err) {
+                Log.exception("Error getting the channel stream's data.", err);
+            }
+        }
+
+        // Discord notifications for new live channels.
+        wentLive.forEach((stream) => {
+            Discord.announceStream(liveChannels[stream]);
+        });
+
+        // If manual hosting is active, check it.  Afterwards, update hosting.
+        if (manualHosting) {
+            let hostStreams;
+            try {
+                hostStreams = await Twitch.getStreams([currentHost]);
+            } catch (err) {
+                Discord.updateHosting(live);
+                Log.exception(`Error checking current host ${currentHost}.`, err);
+            }
+
+            if (!hostStreams || hostStreams.length === 0) {
+                Discord.updateHosting(live);
+                Log.exception(`Host ${currentHost} does not exist.`);
+            }
+
+            let results;
+            try {
+                results = await Twitch.getChannelStream(hostStreams[0].userId);
+            } catch (err) {
+                // Skip the current round of checking the manual host, and just check again next time.
+                Discord.updateHosting(live);
+                Log.exception(`Error checking current host ${currentHost}.`, err);
+                return;
+            }
+
+            let stream;
+
+            try {
+                stream = await results.getStream();
+            } catch (err) {
+                Discord.updateHosting(live);
+                Log.exception(`Error getting stream while checking current host ${currentHost}.`, err);
+                return;
+            }
+
+            manualHosting = !!(results && stream);
+
+            if (manualHosting) {
+                liveChannels[currentHost] = stream;
+            } else {
+                delete liveChannels[currentHost];
+                currentHost = "";
+            }
+
+            Discord.updateHosting(live);
+        } else {
+            Discord.updateHosting(live);
+        }
     }
 
     //                #         #          #  #                #     #
@@ -738,7 +795,7 @@ class Discord {
     //  # #  #  #  #  #   ##    ###  #  #   ##    ##    ##     ##  #      ##    # #  #  #
     /**
      * Announces a live stream.
-     * @param {object} stream The stream.
+     * @param {TwitchApi.Stream} stream The stream.
      * @returns {void}
      */
     static announceStream(stream) {
@@ -752,7 +809,7 @@ class Discord {
                 height: 300
             },
             image: {
-                url: stream.channel.profile_banner,
+                url: stream.channel.profileBanner,
                 width: 1920,
                 height: 480
             },
@@ -766,7 +823,7 @@ class Discord {
             message.addField("Now Playing", stream.game);
         }
 
-        if (stream.channel.display_name.toLowerCase() === "sixgaminggg") {
+        if (stream.channel.displayName.toLowerCase() === "sixgaminggg") {
             message.setDescription(`${streamNotifyRole} - Six Gaming just went live on Twitch!  Watch at ${stream.channel.url}`);
             currentHost = "";
             manualHosting = false;
@@ -786,12 +843,12 @@ class Discord {
                     Log.exception("Error setting activity.", err);
                 }
             });
-        } else if (streamers.indexOf(stream.channel.display_name.toLowerCase()) !== -1) {
-            message.setDescription(`${streamNotifyRole} - Six Gamer ${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`);
-        } else if (hosts.indexOf(stream.channel.display_name.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition
-            message.setDescription(`${stream.channel.display_name} just went live on Twitch!  Watch at ${stream.channel.url}`);
+        } else if (streamers.indexOf(stream.channel.displayName.toLowerCase()) !== -1) {
+            message.setDescription(`${streamNotifyRole} - Six Gamer ${stream.channel.displayName} just went live on Twitch!  Watch at ${stream.channel.url}`);
+        } else if (hosts.indexOf(stream.channel.displayName.toLowerCase()) !== -1) { // eslint-disable-line no-negated-condition
+            message.setDescription(`${stream.channel.displayName} just went live on Twitch!  Watch at ${stream.channel.url}`);
         } else {
-            message.setDescription(`${stream.channel.display_name} has been hosted by Six Gaming on Twitch!  Watch at ${stream.channel.url}`);
+            message.setDescription(`${stream.channel.displayName} has been hosted by Six Gaming on Twitch!  Watch at ${stream.channel.url}`);
             lastHost = 0;
             hostingTimestamps.push(new Date().getTime());
             while (hostingTimestamps.length > 3) {
@@ -825,6 +882,35 @@ class Discord {
         }, 300000);
     }
 
+    //                     #     #     #                 ##   #                             ##
+    //                           #                      #  #  #                              #
+    // ###    ##    ###   ##    ###   ##     ##   ###   #     ###    ###  ###   ###    ##    #
+    // #  #  #  #  ##      #     #     #    #  #  #  #  #     #  #  #  #  #  #  #  #  # ##   #
+    // #  #  #  #    ##    #     #     #    #  #  #  #  #  #  #  #  # ##  #  #  #  #  ##     #
+    // ###    ##   ###    ###     ##  ###    ##   #  #   ##   #  #   # #  #  #  #  #   ##   ###
+    // #
+    /**
+     * Positions a channel to the specified index.
+     * @param {number} index The index.
+     * @param {DiscordJs.GuildChannel[]} channels The guild channels.
+     * @returns {Promise} A promise that resolves when the channel has been positioned.
+     */
+    static async positionChannel(index, channels) {
+        const channel = sixGuild.channels.get(channels[index].id);
+
+        index++;
+        try {
+            await channel.edit({position: index});
+        } catch (err) {
+            Log.exception("Problem repositioning channels.", err);
+            return;
+        }
+
+        if (index < channels.length) {
+            await Discord.positionChannel(index, channels);
+        }
+    }
+
     //                     #    ###    #                                #   ##   #                             ##
     //                     #    #  #                                    #  #  #  #                              #
     //  ###    ##   ###   ###   #  #  ##     ###    ##    ##   ###    ###  #     ###    ###  ###   ###    ##    #     ###
@@ -836,24 +922,7 @@ class Discord {
      * @returns {Promise} A promise that resolves when the Discord channels are sorted.
      */
     static async sortDiscordChannels() {
-        const channels = Array.from(sixGuild.channels.filter((channel) => channel.name.startsWith("twitch-")).values()).sort((a, b) => a.name.localeCompare(b.name)),
-            positionChannel = async (index) => {
-                const channel = sixGuild.channels.get(channels[index].id);
-
-                index++;
-                try {
-                    await channel.edit({position: index});
-                } catch (err) {
-                    Log.exception("Problem repositioning channels.", err);
-                    return;
-                }
-
-                if (index < channels.length) {
-                    positionChannel(index);
-                }
-            };
-
-        await positionChannel(0);
+        await Discord.positionChannel(0, Array.from(sixGuild.channels.filter((channel) => channel.name.startsWith("twitch-")).values()).sort((a, b) => a.name.localeCompare(b.name)));
     }
 
     //              #    #  #                     #  #         #                 ##   #                             ##
