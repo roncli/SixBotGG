@@ -1,3 +1,7 @@
+# Deprecation Notice
+
+This repository has been deprecated, and select functionality has been rolled into the [Six Gaming Website](https://github.com/roncli/six.gg).  All future development on the bot will be done there.
+
 SixBotGG
 ========
 
